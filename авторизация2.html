@@ -98,7 +98,7 @@
         <div class="login-header">Авторизация</div>
         <form class="login-form" id="authForm">
             <div class="input-group">
-                <input type="email" id="email" placeholder="E-mail" required>
+                <input type="text" id="username" placeholder="Логин" required>
             </div>
             <div class="input-group">
                 <input type="password" id="password" placeholder="Password" required>
@@ -108,13 +108,31 @@
     </div>
 
     <script>
-        document.getElementById('authForm').addEventListener('submit', function(e) {
+        document.getElementById('authForm').addEventListener('submit', async function(e) {
             e.preventDefault();
-            
-            const email = document.getElementById('email').value;
+            const username = document.getElementById('username').value;
             const password = document.getElementById('password').value;
-            
-            alert(`Авторизация\nEmail: ${email}\nПароль: ${password}`);
+            try {
+                const response = await fetch('http://localhost:8000/login', {
+                    method: 'POST',
+                    headers: {
+                        'Accept': 'application/json',
+                    },
+                    body: new URLSearchParams({
+                        username: username,
+                        password: password
+                    })
+                });
+                const data = await response.json();
+                if (response.ok) {
+                    alert('Успешная авторизация!');
+                    // window.location.href = '/dashboard'; // если нужно перенаправление
+                } else {
+                    alert('Ошибка: ' + (data.detail || 'Неизвестная ошибка'));
+                }
+            } catch (err) {
+                alert('Ошибка соединения с сервером');
+            }
         });
     </script>
 </body>
