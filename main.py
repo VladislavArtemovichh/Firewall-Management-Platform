@@ -1,13 +1,13 @@
 from fastapi import FastAPI, HTTPException, Form
 from fastapi.responses import JSONResponse, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
+from contextlib import asynccontextmanager
 import asyncpg
 import asyncio
 from db_config import DB_USER, DB_PASSWORD, DB_NAME, DB_HOST, DB_PORT
 
 app = FastAPI()
-# uvicorn main:app --reload
-@app.on_event("startup")
+@asynccontextmanager
 async def startup_event():
     # Проверяем, есть ли таблица users, если нет — создаём
     conn = await asyncpg.connect(
