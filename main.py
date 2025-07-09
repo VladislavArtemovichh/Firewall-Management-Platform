@@ -1,6 +1,8 @@
 from fastapi import FastAPI, HTTPException, Form
-from fastapi.responses import JSONResponse, FileResponse
+from fastapi.responses import JSONResponse, FileResponse, RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.templating import Jinja2Templates
+from fastapi import Request
 from contextlib import asynccontextmanager
 import asyncpg
 import asyncio
@@ -65,14 +67,22 @@ async def create_users_table():
     ''')
     await conn.close()
 
+templates = Jinja2Templates(directory=".")
+
 @app.post("/login")
-async def login(username: str = Form(...), password: str = Form(...)):
+async def login(request: Request, username: str = Form(...), password: str = Form(...)):
     if username in users and users[username] == password:
-        return {"message": "Успешная авторизация", "user": username}
-    raise HTTPException(status_code=401, detail="Неверный логин или пароль")
+        return RedirectResponse(url="/dashboard", status_code=303)
+    # Если ошибка, возвращаем страницу авторизации с сообщением
+    return templates.TemplateResponse(
+        "авторизация2.html",
+        {"request": request, "error": "Неверный логин или пароль"},
+        status_code=401
+    )
 
 @app.get("/")
 def get_login_page():
+<<<<<<< HEAD
     return FileResponse("авторизация2.html", media_type="text/html")
 
 @app.get("/dashboard")
@@ -80,3 +90,10 @@ def get_dashboard():
     return FileResponse("dashboard.html", media_type="text/html")
 
  
+=======
+    return FileResponse("auth.html", media_type="text/html")
+
+@app.get("/dashboard")
+def get_dashboard():
+    return FileResponse("dashboard.html", media_type="text/html")
+>>>>>>> d61ee58 (Добавил переадресацию с помощью FastAPI)
