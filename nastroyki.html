@@ -228,8 +228,8 @@
             <div class="no-user-selected">Выберите пользователя из списка слева</div>
             <div id="user-details" style="display: none;">
                 <div class="detail-row">
-                    <div class="detail-label">E-mail</div>
-                    <div class="detail-value" id="user-email"></div>
+                    <div class="detail-label">Логин</div>
+                    <div class="detail-value" id="user-login"></div>
                 </div>
                 
                 <div class="detail-row">
@@ -268,9 +268,9 @@
         <div class="modal-content">
             <div class="modal-title">Добавить нового пользователя</div>
             
-            <div class="detail-label">E-mail</div>
-            <input type="text" class="input-field" id="new-user-email" placeholder="Введите email">
-            <div class="error-message" id="email-error">Пожалуйста, введите корректный email</div>
+            <div class="detail-label">Логин</div>
+            <input type="text" class="input-field" id="new-user-login" placeholder="Введите логин">
+            <div class="error-message" id="login-error">Пожалуйста, введите корректный логин</div>
             
             <div class="detail-label">Пароль</div>
             <input type="password" class="input-field" id="new-user-password" placeholder="Введите пароль">
@@ -305,9 +305,9 @@
     <script>
         // Пример данных пользователей
         const users = [
-            { id: 1, email: "admin@example.com", password: "admin123", role: "firewall-admin" },
-            { id: 2, email: "dev@example.com", password: "dev123", role: "policy-dev" },
-            { id: 3, email: "auditor@example.com", password: "auditor123", role: "network-auditor" }
+            { id: 1, login: "admin", password: "admin123", role: "firewall-admin" },
+            { id: 2, login: "developer", password: "dev123", role: "policy-dev" },
+            { id: 3, login: "auditor", password: "auditor123", role: "network-auditor" }
         ];
         
         let selectedUserId = null;
@@ -324,7 +324,7 @@
             users.forEach(user => {
                 const userElement = document.createElement('div');
                 userElement.className = 'user-item';
-                userElement.textContent = user.email;
+                userElement.textContent = user.login;
                 userElement.dataset.userId = user.id;
                 
                 userElement.addEventListener('click', () => {
@@ -341,7 +341,7 @@
                     document.querySelector('.no-user-selected').style.display = 'none';
                     
                     // Заполняем данные пользователя
-                    document.getElementById('user-email').textContent = user.email;
+                    document.getElementById('user-login').textContent = user.login;
                     document.getElementById('user-password').textContent = user.password;
                     document.getElementById('user-role').textContent = getRoleName(user.role);
                     
@@ -364,10 +364,9 @@
             }
         }
         
-        // Функция для валидации email
-        function isValidEmail(email) {
-            const re = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
-            return re.test(String(email).toLowerCase());
+        // Функция для валидации логина
+        function isValidLogin(login) {
+            return login.length >= 3 && /^[a-zA-Z0-9_]+$/.test(login);
         }
         
         // Функция для валидации пароля
@@ -379,7 +378,7 @@
         document.getElementById('add-user-btn').addEventListener('click', () => {
             // Сбрасываем предыдущий выбор
             selectedRoleForNewUser = null;
-            document.getElementById('new-user-email').value = '';
+            document.getElementById('new-user-login').value = '';
             document.getElementById('new-user-password').value = '';
             document.querySelectorAll('#add-user-modal .role-option').forEach(el => {
                 el.classList.remove('selected');
@@ -394,7 +393,7 @@
                 const user = users.find(u => u.id === selectedUserId);
                 if (user) {
                     document.getElementById('delete-modal-text').textContent = 
-                        `Вы уверены, что хотите удалить пользователя ${user.email}?`;
+                        `Вы уверены, что хотите удалить пользователя ${user.login}?`;
                     document.getElementById('delete-user-modal').style.display = 'flex';
                 }
             } else {
@@ -445,17 +444,17 @@
         });
         
         document.getElementById('confirm-add-user').addEventListener('click', () => {
-            const email = document.getElementById('new-user-email').value.trim();
+            const login = document.getElementById('new-user-login').value.trim();
             const password = document.getElementById('new-user-password').value.trim();
             
             // Валидация
             let isValid = true;
             
-            if (!isValidEmail(email)) {
-                document.getElementById('email-error').style.display = 'block';
+            if (!isValidLogin(login)) {
+                document.getElementById('login-error').style.display = 'block';
                 isValid = false;
             } else {
-                document.getElementById('email-error').style.display = 'none';
+                document.getElementById('login-error').style.display = 'none';
             }
             
             if (!isValidPassword(password)) {
@@ -474,7 +473,7 @@
                 const newId = users.length > 0 ? Math.max(...users.map(u => u.id)) + 1 : 1;
                 users.push({
                     id: newId,
-                    email: email,
+                    login: login,
                     password: password,
                     role: selectedRoleForNewUser
                 });
