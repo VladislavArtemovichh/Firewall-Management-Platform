@@ -107,12 +107,12 @@
         <div class="login-header">
             Авторизация
         </div>
-        <form class="login-form" id="authForm">
+        <form class="login-form" id="authForm" action="/login" method="post">
             <div class="input-group">
-                <input type="text" id="username" placeholder="Логин" required>
+                <input type="text" id="username" name="username" placeholder="Логин" required>
             </div>
             <div class="input-group">
-                <input type="password" id="password" placeholder="Пароль" required>
+                <input type="password" id="password" name="password" placeholder="Пароль" required>
             </div>
             <button type="submit" class="login-button">
                 ВХОД
@@ -120,6 +120,7 @@
         </form>
     </div>
 
+<<<<<<< HEAD:авторизация2.html
     <script>
         document.getElementById('authForm').addEventListener('submit', async function(e) {
             e.preventDefault();
@@ -147,5 +148,7 @@
             }
         });
     </script>
+=======
+>>>>>>> 4309568 (Переименовал файл `авторизация2.html`):auth.html
 </body>
 </html>
