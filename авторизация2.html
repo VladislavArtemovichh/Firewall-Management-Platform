@@ -5,11 +5,21 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Авторизация</title>
     <style>
+        :root {
+            --primary: #1a3a5f;
+            --secondary: #2c5282;
+            --danger: #e53e3e;
+            --warning: #dd6b20;
+            --success: #38a169;
+            --dark: #1a202c;
+            --light: #f7fafc;
+        }
+        
         * {
+            box-sizing: border-box;
             margin: 0;
             padding: 0;
-            box-sizing: border-box;
-            font-family: 'Arial', sans-serif;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
         }
         
         body {
@@ -17,39 +27,39 @@
             justify-content: center;
             align-items: center;
             min-height: 100vh;
-            background-color: rgb(23, 23, 23);
+            background-color: #edf2f7;
+            color: var(--dark);
+            line-height: 1.6;
         }
         
         .login-container {
             width: 100%;
-            max-width: 500px;
-            background: #f5f5f5;
-            border-radius: 15px;
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
-            overflow: hidden;
+            max-width: 420px;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
             padding: 40px;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .login-container::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            height: 5px;
+            width: 100%;
+            background: var(--primary);
         }
         
         .login-header {
-            color: #333;
+            color: var(--primary);
             text-align: center;
-            padding-bottom: 30px;
-            font-size: 28px;
-            font-weight: bold;
-            text-transform: uppercase;
-            position: relative;
+            padding-bottom: 25px;
+            font-size: 1.8rem;
+            font-weight: 600;
             margin-bottom: 25px;
-        }
-        
-        .login-header::after {
-            content: "";
-            position: absolute;
-            bottom: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            width: 80%;
-            height: 1px;
-            background-color: #ccc;
         }
         
         .input-group {
@@ -58,52 +68,55 @@
         
         .input-group input {
             width: 100%;
-            padding: 15px 20px;
-            background: #e0e0e0;
-            border: none;
-            border-radius: 25px;
+            padding: 14px 20px;
+            background: #f7fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 5px;
             font-size: 16px;
             transition: all 0.3s;
             outline: none;
+            color: var(--dark);
         }
         
         .input-group input:focus {
-            background: #d0d0d0;
-            box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.3);
+            border-color: var(--primary);
+            box-shadow: 0 0 0 2px rgba(26, 58, 95, 0.2);
         }
         
         .login-button {
-            width: 120px;
-            padding: 15px;
-            background: #3498db;
+            width: 100%;
+            padding: 14px;
+            background: var(--primary);
             color: white;
             border: none;
-            border-radius: 25px;
+            border-radius: 5px;
             font-size: 16px;
-            font-weight: bold;
+            font-weight: 600;
             cursor: pointer;
-            transition: background 0.3s;
-            text-transform: uppercase;
-            margin: 10px auto 0;
-            display: block;
+            transition: all 0.3s;
         }
         
         .login-button:hover {
-            background: #2980b9;
+            background: var(--secondary);
+            transform: translateY(-2px);
         }
     </style>
 </head>
 <body>
     <div class="login-container">
-        <div class="login-header">Авторизация</div>
+        <div class="login-header">
+            Авторизация
+        </div>
         <form class="login-form" id="authForm">
             <div class="input-group">
                 <input type="text" id="username" placeholder="Логин" required>
             </div>
             <div class="input-group">
-                <input type="password" id="password" placeholder="Password" required>
+                <input type="password" id="password" placeholder="Пароль" required>
             </div>
-            <button type="submit" class="login-button">ВХОД</button>
+            <button type="submit" class="login-button">
+                ВХОД
+            </button>
         </form>
     </div>
 
