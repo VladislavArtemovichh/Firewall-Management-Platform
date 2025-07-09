@@ -75,4 +75,8 @@ async def login(username: str = Form(...), password: str = Form(...)):
 def get_login_page():
     return FileResponse("авторизация2.html", media_type="text/html")
 
+@app.get("/dashboard")
+def get_dashboard():
+    return FileResponse("dashboard.html", media_type="text/html")
 
+ 

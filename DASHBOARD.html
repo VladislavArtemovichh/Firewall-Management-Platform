@@ -364,19 +364,11 @@
                     <div class="kpi-title">
                         <i class="fas fa-exclamation-triangle"></i> Блокированных атак
                     </div>
-                    <div class="kpi-value">1,248</div>
-                    <div class="kpi-change negative">
-                        <i class="fas fa-arrow-up"></i> +12% за 24ч
-                    </div>
                 </div>
                 
                 <div class="kpi-card card-warning">
                     <div class="kpi-title">
                         <i class="fas fa-plug"></i> Активных устройств
-                    </div>
-                    <div class="kpi-value">18/24</div>
-                    <div class="kpi-change negative">
-                        <i class="fas fa-arrow-down"></i> 3 не отвечают
                     </div>
                 </div>
                 
@@ -384,19 +376,11 @@
                     <div class="kpi-title">
                         <i class="fas fa-traffic-light"></i> Пропускная способность
                     </div>
-                    <div class="kpi-value">4.2 Gbps</div>
-                    <div class="kpi-change positive">
-                        <i class="fas fa-arrow-down"></i> 15% нагрузки
-                    </div>
                 </div>
                 
                 <div class="kpi-card card-primary">
                     <div class="kpi-title">
                         <i class="fas fa-clock"></i> Среднее время ответа
-                    </div>
-                    <div class="kpi-value">42 мс</div>
-                    <div class="kpi-change positive">
-                        <i class="fas fa-arrow-down"></i> 8% улучшение
                     </div>
                 </div>
             </div>
@@ -405,30 +389,10 @@
             <div class="dashboard-grid">
                 <!-- Левый столбец -->
                 <div class="left-column">
-                    <!-- График трафика -->
-                    <div class="widget">
-                        <div class="widget-header">
-                            <h3 class="widget-title">Сетевой трафик</h3>
-                            <div class="filters">
-                                <select>
-                                    <option>Последние 24 часа</option>
-                                    <option>Последние 7 дней</option>
-                                    <option>Последний месяц</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div class="chart-container">
-                            <canvas id="trafficChart"></canvas>
-                        </div>
-                    </div>
-                    
                     <!-- События безопасности -->
                     <div class="widget">
                         <div class="widget-header">
                             <h3 class="widget-title">Последние события безопасности</h3>
-                            <button class="btn btn-primary">
-                                <i class="fas fa-download"></i> Экспорт
-                            </button>
                         </div>
                         <div class="table-container">
                             <table class="events-table">
@@ -442,128 +406,9 @@
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    <tr>
-                                        <td>14:23:45</td>
-                                        <td>FW-01 (Москва)</td>
-                                        <td>DDoS атака</td>
-                                        <td>192.168.23.45</td>
-                                        <td><span class="status status-critical">Блокировано</span></td>
-                                    </tr>
-                                    <tr>
-                                        <td>14:15:32</td>
-                                        <td>FW-03 (СПб)</td>
-                                        <td>Попытка сканирования</td>
-                                        <td>10.10.1.205</td>
-                                        <td><span class="status status-warning">Предупреждение</span></td>
-                                    </tr>
-                                    <tr>
-                                        <td>13:58:11</td>
-                                        <td>FW-02 (Казань)</td>
-                                        <td>Несанкционированный доступ</td>
-                                        <td>172.16.0.33</td>
-                                        <td><span class="status status-critical">Блокировано</span></td>
-                                    </tr>
-                                    <tr>
-                                        <td>13:42:09</td>
-                                        <td>FW-05 (Екатеринбург)</td>
-                                        <td>Обновление правил</td>
-                                        <td>Локальный админ</td>
-                                        <td><span class="status status-normal">Успешно</span></td>
-                                    </tr>
-                                    <tr>
-                                        <td>13:30:15</td>
-                                        <td>FW-01 (Москва)</td>
-                                        <td>Подозрительный трафик</td>
-                                        <td>45.33.21.109</td>
-                                        <td><span class="status status-warning">Мониторинг</span></td>
-                                    </tr>
+                                    <!-- Пусто -->
                                 </tbody>
                             </table>
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- Правый столбец -->
-                <div class="right-column">
-                    <!-- Статус устройств -->
-                    <div class="widget">
-                        <div class="widget-header">
-                            <h3 class="widget-title">Состояние устройств</h3>
-                            <button class="btn btn-primary">
-                                <i class="fas fa-plus"></i> Добавить
-                            </button>
-                        </div>
-                        <ul class="device-list">
-                            <li class="device-item">
-                                <div class="device-icon">
-                                    <i class="fas fa-fire"></i>
-                                </div>
-                                <div class="device-info">
-                                    <div class="device-name">FW-01 (Москва)</div>
-                                    <div class="device-status">
-                                        <span class="status-indicator status-warning"></span>
-                                        Высокая нагрузка (85%)
-                                    </div>
-                                </div>
-                            </li>
-                            <li class="device-item">
-                                <div class="device-icon">
-                                    <i class="fas fa-fire"></i>
-                                </div>
-                                <div class="device-info">
-                                    <div class="device-name">FW-02 (Казань)</div>
-                                    <div class="device-status">
-                                        <span class="status-indicator status-online"></span>
-                                        Норма (45%)
-                                    </div>
-                                </div>
-                            </li>
-                            <li class="device-item">
-                                <div class="device-icon">
-                                    <i class="fas fa-fire"></i>
-                                </div>
-                                <div class="device-info">
-                                    <div class="device-name">FW-03 (СПб)</div>
-                                    <div class="device-status">
-                                        <span class="status-indicator status-online"></span>
-                                        Норма (32%)
-                                    </div>
-                                </div>
-                            </li>
-                            <li class="device-item">
-                                <div class="device-icon">
-                                    <i class="fas fa-fire"></i>
-                                </div>
-                                <div class="device-info">
-                                    <div class="device-name">FW-04 (Новосибирск)</div>
-                                    <div class="device-status">
-                                        <span class="status-indicator status-offline"></span>
-                                        Не отвечает
-                                    </div>
-                                </div>
-                            </li>
-                            <li class="device-item">
-                                <div class="device-icon">
-                                    <i class="fas fa-fire"></i>
-                                </div>
-                                <div class="device-info">
-                                    <div class="device-name">FW-05 (Екатеринбург)</div>
-                                    <div class="device-status">
-                                        <span class="status-indicator status-online"></span>
-                                        Норма (28%)
-                                    </div>
-                                </div>
-                            </li>
-                        </ul>
-                    </div>
-                    
-                    <!-- Типы угроз -->
-                    <div class="widget">
-                        <div class="widget-header">
-                            <h3 class="widget-title">Распределение угроз</h3>
-                        </div>
-                        <div class="chart-container">
-                            <canvas id="threatsChart"></canvas>
                         </div>
                     </div>
                 </div>
@@ -572,90 +417,7 @@
     </div>
 
     <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            // График сетевого трафика
-            const trafficCtx = document.getElementById('trafficChart').getContext('2d');
-            new Chart(trafficCtx, {
-                type: 'line',
-                data: {
-                    labels: ['00:00', '04:00', '08:00', '12:00', '16:00', '20:00', '23:59'],
-                    datasets: [
-                        {
-                            label: 'Входящий трафик',
-                            data: [120, 190, 300, 500, 250, 400, 600],
-                            borderColor: '#3182ce',
-                            backgroundColor: 'rgba(49, 130, 206, 0.1)',
-                            tension: 0.3,
-                            fill: true
-                        },
-                        {
-                            label: 'Исходящий трафик',
-                            data: [80, 150, 200, 350, 180, 300, 450],
-                            borderColor: '#38a169',
-                            backgroundColor: 'rgba(56, 161, 105, 0.1)',
-                            tension: 0.3,
-                            fill: true
-                        },
-                        {
-                            label: 'Блокированный трафик',
-                            data: [40, 80, 120, 200, 150, 180, 220],
-                            borderColor: '#e53e3e',
-                            backgroundColor: 'rgba(229, 62, 62, 0.1)',
-                            tension: 0.3,
-                            fill: true
-                        }
-                    ]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: { position: 'top' }
-                    },
-                    scales: {
-                        y: {
-                            beginAtZero: true,
-                            title: {
-                                display: true,
-                                text: 'Мбит/с'
-                            }
-                        }
-                    }
-                }
-            });
-            
-            // График распределения угроз
-            const threatsCtx = document.getElementById('threatsChart').getContext('2d');
-            new Chart(threatsCtx, {
-                type: 'doughnut',
-                data: {
-                    labels: ['DDoS атаки', 'Сканирование портов', 'Попытки взлома', 'Вредоносное ПО', 'Другое'],
-                    datasets: [{
-                        data: [35, 25, 20, 15, 5],
-                        backgroundColor: [
-                            '#e53e3e', '#dd6b20', '#d69e2e', '#38a169', '#4a5568'
-                        ]
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: { position: 'bottom' }
-                    }
-                }
-            });
-            
-            // Обновление статуса устройств
-            setInterval(() => {
-                const indicators = document.querySelectorAll('.status-indicator');
-                indicators.forEach(indicator => {
-                    if (indicator.classList.contains('status-online')) {
-                        indicator.style.animation = 'pulse 1.5s infinite';
-                    }
-                });
-            }, 5000);
-        });
+        // Скрипты удалены, только таблица событий безопасности
     </script>
 </body>
 </html>
