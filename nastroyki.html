@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Управление пользователями</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            background-color: #f5f5f5;
+        }
+        
+        .sidebar {
+            width: 300px;
+            background-color: #fff;
+            border-right: 1px solid #ddd;
+            height: 100vh;
+            padding: 20px;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .user-list {
+            flex-grow: 1;
+            overflow-y: auto;
+        }
+        
+        .user-role {
+            margin-top: 15px;
+            font-weight: bold;
+            color: #555;
+        }
+        
+        .user-item {
+            padding: 8px 10px;
+            cursor: pointer;
+            border-radius: 4px;
+            margin: 2px 0;
+        }
+        
+        .user-item:hover {
+            background-color: #eee;
+        }
+        
+        .user-item.selected {
+            background-color: #e0e0e0;
+            font-weight: bold;
+        }
+        
+        .sidebar-buttons {
+            margin-top: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        
+        button {
+            padding: 8px 12px;
+            background-color: #4a7dff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        
+        button:hover {
+            background-color: #3a6de8;
+        }
+        
+        .main-content {
+            flex-grow: 1;
+            padding: 20px;
+            background-color: #fff;
+            margin: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .user-details {
+            margin-top: 20px;
+        }
+        
+        .detail-row {
+            margin-bottom: 15px;
+        }
+        
+        .detail-label {
+            font-weight: bold;
+            margin-bottom: 5px;
+            display: block;
+            color: #555;
+        }
+        
+        .detail-value {
+            padding: 8px;
+            background-color: #f9f9f9;
+            border-radius: 4px;
+            border: 1px solid #ddd;
+            min-height: 20px;
+        }
+        
+        .change-role-btn {
+            margin-top: 30px;
+        }
+        
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        
+        .modal-content {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            width: 350px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        }
+        
+        .modal-title {
+            font-weight: bold;
+            margin-bottom: 15px;
+            font-size: 18px;
+        }
+        
+        .role-option {
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            border: 1px solid #ddd;
+            transition: background-color 0.2s;
+        }
+        
+        .role-option:hover {
+            background-color: #f0f0f0;
+        }
+        
+        .role-option.selected {
+            background-color: #e0e0e0;
+            border-color: #aaa;
+        }
+        
+        .modal-buttons {
+            margin-top: 20px;
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+        }
+        
+        .cancel-btn {
+            background-color: #ccc;
+        }
+        
+        .cancel-btn:hover {
+            background-color: #bbb;
+        }
+        
+        .input-field {
+            width: 100%;
+            padding: 8px;
+            margin-bottom: 15px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        
+        .error-message {
+            color: #d9534f;
+            font-size: 13px;
+            margin-top: -10px;
+            margin-bottom: 10px;
+            display: none;
+        }
+        
+        .no-user-selected {
+            color: #777;
+            font-style: italic;
+            margin-top: 20px;
+        }
+        
+        .delete-modal-text {
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="sidebar">
+        <h2>Пользователи</h2>
+        <div class="user-list">
+            <div class="user-role">Администратор брандмауэра</div>
+            <div class="user-list-role" id="firewall-admin">
+                <!-- Пользователи будут добавляться здесь -->
+            </div>
+            
+            <div class="user-role">Разработчик политик</div>
+            <div class="user-list-role" id="policy-dev">
+                <!-- Пользователи будут добавляться здесь -->
+            </div>
+            
+            <div class="user-role">Сетевой аудитор</div>
+            <div class="user-list-role" id="network-auditor">
+                <!-- Пользователи будут добавляться здесь -->
+            </div>
+        </div>
+        
+        <div class="sidebar-buttons">
+            <button id="add-user-btn">Добавить пользователя</button>
+            <button id="delete-user-btn">Удалить пользователя</button>
+        </div>
+    </div>
+    
+    <div class="main-content">
+        <h2>Данные пользователя</h2>
+        <div class="user-details" id="user-details-container">
+            <div class="no-user-selected">Выберите пользователя из списка слева</div>
+            <div id="user-details" style="display: none;">
+                <div class="detail-row">
+                    <div class="detail-label">E-mail</div>
+                    <div class="detail-value" id="user-email"></div>
+                </div>
+                
+                <div class="detail-row">
+                    <div class="detail-label">Пароль</div>
+                    <div class="detail-value" id="user-password"></div>
+                </div>
+                
+                <div class="detail-row">
+                    <div class="detail-label">Роль пользователя</div>
+                    <div class="detail-value" id="user-role"></div>
+                </div>
+                
+                <button class="change-role-btn" id="change-role-btn">Изменить права</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Модальное окно для изменения роли -->
+    <div class="modal" id="role-modal">
+        <div class="modal-content">
+            <div class="modal-title">Выберите новую роль</div>
+            
+            <div class="role-option" data-role="firewall-admin">Администратор брандмауэра</div>
+            <div class="role-option" data-role="policy-dev">Разработчик политик</div>
+            <div class="role-option" data-role="network-auditor">Сетевой аудитор</div>
+            
+            <div class="modal-buttons">
+                <button class="cancel-btn" id="cancel-role-change">Отмена</button>
+                <button id="confirm-role-change">Применить</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Модальное окно для добавления пользователя -->
+    <div class="modal" id="add-user-modal">
+        <div class="modal-content">
+            <div class="modal-title">Добавить нового пользователя</div>
+            
+            <div class="detail-label">E-mail</div>
+            <input type="text" class="input-field" id="new-user-email" placeholder="Введите email">
+            <div class="error-message" id="email-error">Пожалуйста, введите корректный email</div>
+            
+            <div class="detail-label">Пароль</div>
+            <input type="password" class="input-field" id="new-user-password" placeholder="Введите пароль">
+            <div class="error-message" id="password-error">Пароль должен содержать не менее 6 символов</div>
+            
+            <div class="modal-title" style="margin-top: 20px;">Выберите роль</div>
+            
+            <div class="role-option" data-role="firewall-admin">Администратор брандмауэра</div>
+            <div class="role-option" data-role="policy-dev">Разработчик политик</div>
+            <div class="role-option" data-role="network-auditor">Сетевой аудитор</div>
+            
+            <div class="modal-buttons">
+                <button class="cancel-btn" id="cancel-add-user">Отмена</button>
+                <button id="confirm-add-user">Добавить</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Модальное окно для удаления пользователя -->
+    <div class="modal" id="delete-user-modal">
+        <div class="modal-content">
+            <div class="modal-title">Удаление пользователя</div>
+            <div class="delete-modal-text" id="delete-modal-text">Вы уверены, что хотите удалить этого пользователя?</div>
+            
+            <div class="modal-buttons">
+                <button class="cancel-btn" id="cancel-delete-user">Отмена</button>
+                <button id="confirm-delete-user">Удалить</button>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // Пример данных пользователей
+        const users = [
+            { id: 1, email: "admin@example.com", password: "admin123", role: "firewall-admin" },
+            { id: 2, email: "dev@example.com", password: "dev123", role: "policy-dev" },
+            { id: 3, email: "auditor@example.com", password: "auditor123", role: "network-auditor" }
+        ];
+        
+        let selectedUserId = null;
+        let selectedRoleForNewUser = null;
+        
+        // Функция для отрисовки пользователей
+        function renderUsers() {
+            // Очищаем списки
+            document.getElementById('firewall-admin').innerHTML = '';
+            document.getElementById('policy-dev').innerHTML = '';
+            document.getElementById('network-auditor').innerHTML = '';
+            
+            // Добавляем пользователей в соответствующие списки
+            users.forEach(user => {
+                const userElement = document.createElement('div');
+                userElement.className = 'user-item';
+                userElement.textContent = user.email;
+                userElement.dataset.userId = user.id;
+                
+                userElement.addEventListener('click', () => {
+                    // Удаляем выделение у всех пользователей
+                    document.querySelectorAll('.user-item').forEach(el => {
+                        el.classList.remove('selected');
+                    });
+                    
+                    // Добавляем выделение текущему пользователю
+                    userElement.classList.add('selected');
+                    
+                    // Показываем детали пользователя
+                    document.getElementById('user-details').style.display = 'block';
+                    document.querySelector('.no-user-selected').style.display = 'none';
+                    
+                    // Заполняем данные пользователя
+                    document.getElementById('user-email').textContent = user.email;
+                    document.getElementById('user-password').textContent = user.password;
+                    document.getElementById('user-role').textContent = getRoleName(user.role);
+                    
+                    // Запоминаем выбранного пользователя
+                    selectedUserId = user.id;
+                });
+                
+                // Добавляем пользователя в соответствующий список
+                document.getElementById(user.role).appendChild(userElement);
+            });
+        }
+        
+        // Функция для получения читаемого названия роли
+        function getRoleName(roleKey) {
+            switch(roleKey) {
+                case 'firewall-admin': return 'Администратор брандмауэра';
+                case 'policy-dev': return 'Разработчик политик';
+                case 'network-auditor': return 'Сетевой аудитор';
+                default: return roleKey;
+            }
+        }
+        
+        // Функция для валидации email
+        function isValidEmail(email) {
+            const re = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+            return re.test(String(email).toLowerCase());
+        }
+        
+        // Функция для валидации пароля
+        function isValidPassword(password) {
+            return password.length >= 6;
+        }
+        
+        // Обработчики кнопок
+        document.getElementById('add-user-btn').addEventListener('click', () => {
+            // Сбрасываем предыдущий выбор
+            selectedRoleForNewUser = null;
+            document.getElementById('new-user-email').value = '';
+            document.getElementById('new-user-password').value = '';
+            document.querySelectorAll('#add-user-modal .role-option').forEach(el => {
+                el.classList.remove('selected');
+            });
+            
+            // Показываем модальное окно
+            document.getElementById('add-user-modal').style.display = 'flex';
+        });
+        
+        document.getElementById('delete-user-btn').addEventListener('click', () => {
+            if (selectedUserId) {
+                const user = users.find(u => u.id === selectedUserId);
+                if (user) {
+                    document.getElementById('delete-modal-text').textContent = 
+                        `Вы уверены, что хотите удалить пользователя ${user.email}?`;
+                    document.getElementById('delete-user-modal').style.display = 'flex';
+                }
+            } else {
+                document.getElementById('delete-modal-text').textContent = 
+                    'Пожалуйста, выберите пользователя для удаления';
+                document.getElementById('delete-user-modal').style.display = 'flex';
+            }
+        });
+        
+        document.getElementById('change-role-btn').addEventListener('click', () => {
+            if (selectedUserId) {
+                document.getElementById('role-modal').style.display = 'flex';
+            }
+        });
+        
+        document.getElementById('cancel-role-change').addEventListener('click', () => {
+            document.getElementById('role-modal').style.display = 'none';
+        });
+        
+        document.getElementById('confirm-role-change').addEventListener('click', () => {
+            const selectedRole = document.querySelector('#role-modal .role-option.selected')?.dataset.role;
+            if (selectedRole && selectedUserId) {
+                const user = users.find(u => u.id === selectedUserId);
+                if (user) {
+                    user.role = selectedRole;
+                    renderUsers();
+                    
+                    // Обновляем отображаемую роль
+                    document.getElementById('user-role').textContent = getRoleName(selectedRole);
+                }
+            }
+            document.getElementById('role-modal').style.display = 'none';
+        });
+        
+        // Обработчики для модального окна добавления пользователя
+        document.querySelectorAll('#add-user-modal .role-option').forEach(option => {
+            option.addEventListener('click', function() {
+                document.querySelectorAll('#add-user-modal .role-option').forEach(el => {
+                    el.classList.remove('selected');
+                });
+                this.classList.add('selected');
+                selectedRoleForNewUser = this.dataset.role;
+            });
+        });
+        
+        document.getElementById('cancel-add-user').addEventListener('click', () => {
+            document.getElementById('add-user-modal').style.display = 'none';
+        });
+        
+        document.getElementById('confirm-add-user').addEventListener('click', () => {
+            const email = document.getElementById('new-user-email').value.trim();
+            const password = document.getElementById('new-user-password').value.trim();
+            
+            // Валидация
+            let isValid = true;
+            
+            if (!isValidEmail(email)) {
+                document.getElementById('email-error').style.display = 'block';
+                isValid = false;
+            } else {
+                document.getElementById('email-error').style.display = 'none';
+            }
+            
+            if (!isValidPassword(password)) {
+                document.getElementById('password-error').style.display = 'block';
+                isValid = false;
+            } else {
+                document.getElementById('password-error').style.display = 'none';
+            }
+            
+            if (!selectedRoleForNewUser) {
+                alert('Пожалуйста, выберите роль пользователя');
+                isValid = false;
+            }
+            
+            if (isValid) {
+                const newId = users.length > 0 ? Math.max(...users.map(u => u.id)) + 1 : 1;
+                users.push({
+                    id: newId,
+                    email: email,
+                    password: password,
+                    role: selectedRoleForNewUser
+                });
+                
+                renderUsers();
+                document.getElementById('add-user-modal').style.display = 'none';
+            }
+        });
+        
+        // Обработчики для модального окна удаления пользователя
+        document.getElementById('cancel-delete-user').addEventListener('click', () => {
+            document.getElementById('delete-user-modal').style.display = 'none';
+        });
+        
+        document.getElementById('confirm-delete-user').addEventListener('click', () => {
+            if (selectedUserId) {
+                const index = users.findIndex(u => u.id === selectedUserId);
+                if (index !== -1) {
+                    users.splice(index, 1);
+                    selectedUserId = null;
+                    renderUsers();
+                    
+                    // Скрываем детали пользователя
+                    document.getElementById('user-details').style.display = 'none';
+                    document.querySelector('.no-user-selected').style.display = 'block';
+                }
+            }
+            document.getElementById('delete-user-modal').style.display = 'none';
+        });
+        
+        // Выделение роли при наведении в обоих модальных окнах
+        document.querySelectorAll('.role-option').forEach(option => {
+            option.addEventListener('click', function() {
+                const modalId = this.closest('.modal').id;
+                document.querySelectorAll(`#${modalId} .role-option`).forEach(el => {
+                    el.classList.remove('selected');
+                });
+                this.classList.add('selected');
+            });
+        });
+        
+        // Инициализация
+        renderUsers();
+    </script>
+</body>
+</html>
