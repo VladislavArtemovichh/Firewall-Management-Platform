@@ -82,18 +82,8 @@ async def login(request: Request, username: str = Form(...), password: str = For
 
 @app.get("/")
 def get_login_page():
-<<<<<<< HEAD
-    return FileResponse("авторизация2.html", media_type="text/html")
-
-@app.get("/dashboard")
-def get_dashboard():
-    return FileResponse("dashboard.html", media_type="text/html")
-
- 
-=======
     return FileResponse("auth.html", media_type="text/html")
 
 @app.get("/dashboard")
 def get_dashboard():
     return FileResponse("dashboard.html", media_type="text/html")
->>>>>>> d61ee58 (Добавил переадресацию с помощью FastAPI)
