@@ -14,7 +14,7 @@ setup_middleware(app)
 setup_routes(app)
 
 # Инициализируем базу данных при запуске
-@app.on_event("startup")
+@app.get("/")
 async def startup():
     await create_users_table()
 
