@@ -19,7 +19,10 @@
    pip install -r requirements.txt
    ```
 
-4. **Запустите приложение:**
+4. Запустите PostgreSQL-сервер.
+5. Введите необходимые данные по PostgreSQL-серверу в файл `db_config.py`.
+
+6. **Запустите приложение:**
    ```bash
    uvicorn main:app --reload
    ```
