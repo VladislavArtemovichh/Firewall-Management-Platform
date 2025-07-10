@@ -10,7 +10,7 @@ from .security import (
     decode_error_message
 )
 
-templates = Jinja2Templates(directory=".")
+templates = Jinja2Templates(directory="templates")
 
 def setup_routes(app: FastAPI):
     """Настраивает маршруты приложения"""
@@ -58,7 +58,7 @@ def setup_routes(app: FastAPI):
     @app.get("/dashboard")
     def get_dashboard():
         """Страница дашборда"""
-        return FileResponse("dashboard.html", media_type="text/html")
+        return FileResponse("templates/dashboard.html", media_type="text/html")
 
     @app.exception_handler(429)
     async def too_many_requests_handler(request: Request, exc: HTTPException):
