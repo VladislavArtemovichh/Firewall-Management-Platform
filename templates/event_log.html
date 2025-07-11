@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Журнал событий</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            background-color: #f5f5f5;
+        }
+        .sidebar {
+            width: 300px;
+            background-color: #fff;
+            border-right: 1px solid #ddd;
+            height: 100vh;
+            padding: 20px;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+        }
+        .user-list {
+            flex-grow: 1;
+            overflow-y: auto;
+        }
+        .user-role {
+            margin-top: 15px;
+            font-weight: bold;
+            color: #555;
+        }
+        .user-item {
+            padding: 8px 10px;
+            cursor: pointer;
+            border-radius: 4px;
+            margin: 2px 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .user-item:hover {
+            background-color: #eee;
+        }
+        .user-item.selected {
+            background-color: #e0e0e0;
+            font-weight: bold;
+        }
+        .sidebar-buttons {
+            margin-top: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        button {
+            padding: 8px 12px;
+            background-color: #4a7dff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        button:hover {
+            background-color: #3a6de8;
+        }
+        .main-content {
+            flex-grow: 1;
+            padding: 20px;
+            background-color: #fff;
+            margin: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            min-width: 600px;
+        }
+        .user-info-box {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 15px 25px;
+            margin-bottom: 20px;
+            background: #f9f9f9;
+        }
+        .info-row {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        .info-label {
+            font-weight: bold;
+            color: #555;
+            min-width: 120px;
+        }
+        .status-dot {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-left: 8px;
+        }
+        .status-online {
+            background-color: #38a169;
+        }
+        .status-offline {
+            background-color: #e53e3e;
+        }
+        .activity-container {
+            display: flex;
+            gap: 20px;
+        }
+        .activity-box {
+            flex: 1;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 15px 20px;
+            background: #f9f9f9;
+            min-height: 200px;
+            height: calc(100vh - 300px);
+            overflow-y: auto;
+        }
+        .activity-title {
+            font-weight: bold;
+            margin-bottom: 15px;
+            color: #555;
+            font-size: 16px;
+        }
+        .activity-list {
+            display: flex;
+            flex-direction: column-reverse;
+        }
+        .activity-item {
+            background: #fff;
+            border-radius: 4px;
+            padding: 8px 12px;
+            margin-bottom: 8px;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+            font-size: 14px;
+        }
+        .no-user-selected {
+            color: #777;
+            font-style: italic;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="sidebar">
+        <h2>Пользователи</h2>
+        <div class="user-list">
+            <div class="user-role">Администратор брандмауэра</div>
+            <div class="user-list-role" id="firewall-admin">
+                {% for user in users %}
+                    {% if user.role == 'firewall-admin' %}
+                    <div class="user-item" data-user-id="{{ user.id }}" onclick="selectUser({{ user.id }})">
+                        {{ user.login }}
+                    </div>
+                    {% endif %}
+                {% endfor %}
+            </div>
+            <div class="user-role">Разработчик политик</div>
+            <div class="user-list-role" id="policy-dev">
+                {% for user in users %}
+                    {% if user.role == 'policy-dev' %}
+                    <div class="user-item" data-user-id="{{ user.id }}" onclick="selectUser({{ user.id }})">
+                        {{ user.login }}
+                    </div>
+                    {% endif %}
+                {% endfor %}
+            </div>
+            <div class="user-role">Сетевой аудитор</div>
+            <div class="user-list-role" id="network-auditor">
+                {% for user in users %}
+                    {% if user.role == 'network-auditor' %}
+                    <div class="user-item" data-user-id="{{ user.id }}" onclick="selectUser({{ user.id }})">
+                        {{ user.login }}
+                    </div>
+                    {% endif %}
+                {% endfor %}
+            </div>
+        </div>
+        <div class="sidebar-buttons">
+            <button onclick="window.location.href='/dashboard'">Назад</button>
+        </div>
+    </div>
+    <div class="main-content">
+        <div id="user-activity-container">
+            <div class="no-user-selected">Выберите пользователя из списка слева</div>
+            <div id="user-details" style="display: none;">
+                <!-- Верхняя рамка -->
+                <div class="user-info-box">
+                    <div class="info-row">
+                        <span class="info-label">Логин:</span>
+                        <span id="user-login"></span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Пароль:</span>
+                        <span id="user-password"></span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Статус:</span>
+                        <span id="user-status-text"></span>
+                        <span id="user-status-dot" class="status-dot"></span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Время онлайн:</span>
+                        <span id="user-online-time"></span>
+                    </div>
+                </div>
+                <!-- Две рамки под верхней -->
+                <div class="activity-container">
+                    <div class="activity-box">
+                        <div class="activity-title">История сессий</div>
+                        <div class="activity-list" id="sessions-list"></div>
+                    </div>
+                    <div class="activity-box">
+                        <div class="activity-title">Недавние действия</div>
+                        <div class="activity-list" id="actions-list"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script>
+        // Данные пользователей из сервера
+        const userData = {{ users|tojson }};
+        // Для примера: сессии и действия (в реальном проекте — с сервера)
+        const userSessions = {};
+        const userActions = {};
+        // Для примера: статусы и время входа/выхода (в реальном проекте — с сервера)
+        const userStatus = {};
+        // Пример заполнения (можно заменить на API)
+        userData.forEach(u => {
+            userSessions[u.id] = [
+                {type: 'login', time: '2024-06-01 10:00:00'},
+                {type: 'logout', time: '2024-06-01 12:34:56'}
+            ];
+            userActions[u.id] = [
+                {action: 'Изменил настройки', time: '2024-06-01 11:00:00'},
+                {action: 'Просмотрел журнал', time: '2024-06-01 11:30:00'}
+            ];
+            userStatus[u.id] = {
+                online: u.id === 1, // только первый онлайн для примера
+                loginTime: '2024-06-01 10:00:00',
+                logoutTime: u.id === 1 ? null : '2024-06-01 12:34:56',
+                onlineDuration: u.id === 1 ? null : 9056 // секунды
+            };
+        });
+        let selectedUserId = null;
+        let onlineTimer = null;
+        function selectUser(userId) {
+            // Удаляем выделение у всех пользователей
+            document.querySelectorAll('.user-item').forEach(el => {
+                el.classList.remove('selected');
+            });
+            // Добавляем выделение текущему пользователю
+            event.target.classList.add('selected');
+            // Показываем детали пользователя
+            document.getElementById('user-details').style.display = 'block';
+            document.querySelector('.no-user-selected').style.display = 'none';
+            // Находим данные пользователя
+            const user = userData.find(u => u.id === userId);
+            if (!user) return;
+            document.getElementById('user-login').textContent = user.login;
+            document.getElementById('user-password').textContent = user.password;
+            // Статус и время онлайн
+            const status = userStatus[userId];
+            const statusText = document.getElementById('user-status-text');
+            const statusDot = document.getElementById('user-status-dot');
+            const onlineTime = document.getElementById('user-online-time');
+            if (status.online) {
+                statusText.textContent = 'Онлайн';
+                statusDot.className = 'status-dot status-online';
+                // Реальное время онлайн
+                if (onlineTimer) clearInterval(onlineTimer);
+                function updateOnlineTime() {
+                    const start = new Date(status.loginTime);
+                    const now = new Date();
+                    const diff = Math.floor((now - start) / 1000);
+                    onlineTime.textContent = formatDuration(diff);
+                }
+                updateOnlineTime();
+                onlineTimer = setInterval(updateOnlineTime, 1000);
+            } else {
+                statusText.textContent = 'Оффлайн';
+                statusDot.className = 'status-dot status-offline';
+                if (onlineTimer) clearInterval(onlineTimer);
+                // Фиксированное время онлайн
+                onlineTime.textContent = formatDuration(status.onlineDuration || 0);
+            }
+            // История сессий
+            const sessions = userSessions[userId] || [];
+            const sessionsList = document.getElementById('sessions-list');
+            sessionsList.innerHTML = '';
+            sessions.slice().reverse().forEach(s => {
+                const msg = s.type === 'login' ? `Авторизовался на сайте (${s.time})` : `Вышел с сайта (${s.time})`;
+                const div = document.createElement('div');
+                div.className = 'activity-item';
+                div.textContent = msg;
+                sessionsList.appendChild(div);
+            });
+            // Недавние действия
+            const actions = userActions[userId] || [];
+            const actionsList = document.getElementById('actions-list');
+            actionsList.innerHTML = '';
+            actions.slice().reverse().forEach(a => {
+                const div = document.createElement('div');
+                div.className = 'activity-item';
+                div.textContent = `${a.action} (${a.time})`;
+                actionsList.appendChild(div);
+            });
+            selectedUserId = userId;
+        }
+        function formatDuration(sec) {
+            const h = String(Math.floor(sec/3600)).padStart(2,'0');
+            const m = String(Math.floor((sec%3600)/60)).padStart(2,'0');
+            const s = String(sec%60).padStart(2,'0');
+            return `${h}:${m}:${s}`;
+        }
+    </script>
+</body>
+</html>
