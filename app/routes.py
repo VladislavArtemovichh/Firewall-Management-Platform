@@ -62,9 +62,9 @@ def setup_routes(app: FastAPI):
     def get_dashboard(request: Request):
         """Страница дашборда"""
         username = request.cookies.get("username")
-        user_role = None
-        if username and username in users:
-            user_role = users[username]["role"].value
+        if not username or username not in users:
+            return RedirectResponse(url="/", status_code=303)
+        user_role = users[username]["role"].value
         return templates.TemplateResponse("dashboard.html", {"request": request, "user_role": user_role})
 
     @app.get("/nastroyki")
