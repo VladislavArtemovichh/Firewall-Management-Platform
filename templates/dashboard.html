@@ -334,10 +334,10 @@
                 <i class="fas fa-list"></i> Правила доступа
             </div>
             <div class="nav-item">
-                <i class="fas fa-bell"></i> Оповещения
-            </div>
-            <div class="nav-item">
                 <i class="fas fa-chart-bar"></i> Аналитика
+            </div>
+            <div class="nav-item admin-only" id="event-log" style="display: none;" onclick="window.location.href='/event-log'">
+                <i class="fas fa-bell"></i> Журнал событий
             </div>
             <div class="nav-item admin-only" id="admin-settings" style="display: none;" onclick="window.location.href='/settings'">
                 <i class="fas fa-cog" style="margin-right: 8px;"></i> Управление пользователями
@@ -423,8 +423,10 @@
         document.addEventListener('DOMContentLoaded', function() {
             if (userRole === 'firewall-admin') {
                 document.getElementById('admin-settings').style.display = 'block';
+                document.getElementById('event-log').style.display = 'block';
             } else {
                 document.getElementById('admin-settings').style.display = 'none';
+                document.getElementById('event-log').style.display = 'none';
             }
         });
     </script>
