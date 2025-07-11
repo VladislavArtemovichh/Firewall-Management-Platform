@@ -67,8 +67,8 @@ def setup_routes(app: FastAPI):
         user_role = users[username]["role"].value
         return templates.TemplateResponse("dashboard.html", {"request": request, "user_role": user_role})
 
-    @app.get("/nastroyki")
-    def get_nastroyki(request: Request):
+    @app.get("/settings")
+    def get_settings(request: Request):
         """Страница управления пользователями"""
         username = request.cookies.get("username")
         user_role = None
@@ -76,7 +76,7 @@ def setup_routes(app: FastAPI):
             user_role = users[username]["role"].value
         if user_role != "firewall-admin":
             return RedirectResponse(url="/dashboard", status_code=303)
-        return templates.TemplateResponse("nastroyki.html", {"request": request})
+        return templates.TemplateResponse("settings.html", {"request": request})
 
     @app.get("/api/users")
     def get_users():
