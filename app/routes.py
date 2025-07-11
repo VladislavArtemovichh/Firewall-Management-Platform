@@ -27,7 +27,9 @@ def setup_routes(app: FastAPI):
         # Проверяем аутентификацию
         if authenticate_user(username, password):
             clear_login_attempts(username)
-            return RedirectResponse(url="/dashboard", status_code=303)
+            response = RedirectResponse(url="/dashboard", status_code=303)
+            response.set_cookie(key="username", value=username)
+            return response
 
         # Записываем неудачную попытку
         record_login_attempt(username)
@@ -57,13 +59,23 @@ def setup_routes(app: FastAPI):
         return response
 
     @app.get("/dashboard")
-    def get_dashboard():
+    def get_dashboard(request: Request):
         """Страница дашборда"""
-        return FileResponse("templates/dashboard.html", media_type="text/html")
+        username = request.cookies.get("username")
+        user_role = None
+        if username and username in users:
+            user_role = users[username]["role"].value
+        return templates.TemplateResponse("dashboard.html", {"request": request, "user_role": user_role})
 
     @app.get("/nastroyki")
     def get_nastroyki(request: Request):
         """Страница управления пользователями"""
+        username = request.cookies.get("username")
+        user_role = None
+        if username and username in users:
+            user_role = users[username]["role"].value
+        if user_role != "firewall-admin":
+            return RedirectResponse(url="/dashboard", status_code=303)
         return templates.TemplateResponse("nastroyki.html", {"request": request})
 
     @app.get("/api/users")
