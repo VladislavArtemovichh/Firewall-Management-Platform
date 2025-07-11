@@ -4,7 +4,7 @@ from enum import Enum
 
 # Конфигурация безопасности
 MAX_LOGIN_ATTEMPTS = 3
-LOCKOUT_TIME = 900  # 15 минут в секундах
+LOCKOUT_TIME = 60  #  минута в секундах
 
 # Хранилище попыток входа
 login_attempts = defaultdict(list)
