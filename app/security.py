@@ -27,7 +27,7 @@ def check_login_attempts(username: str, request: Request):
 
 def authenticate_user(username: str, password: str):
     """Аутентифицирует пользователя"""
-    return username in users and users[username] == password
+    return username in users and users[username]["password"] == password
 
 def record_login_attempt(username: str):
     """Записывает попытку входа"""
