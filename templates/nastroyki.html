@@ -219,6 +219,7 @@
         <div class="sidebar-buttons">
             <button id="add-user-btn">Добавить пользователя</button>
             <button id="delete-user-btn">Удалить пользователя</button>
+            <button id="back-btn" onclick="window.location.href='/dashboard'">Назад</button>
         </div>
     </div>
     
@@ -303,15 +304,34 @@
     </div>
     
     <script>
-        // Пример данных пользователей
-        const users = [
-            { id: 1, login: "admin", password: "admin123", role: "firewall-admin" },
-            { id: 2, login: "developer", password: "dev123", role: "policy-dev" },
-            { id: 3, login: "auditor", password: "auditor123", role: "network-auditor" }
-        ];
-        
+        let users = [];
         let selectedUserId = null;
         let selectedRoleForNewUser = null;
+        
+        // Функция для получения читаемого названия роли
+        function getRoleName(roleKey) {
+            switch(roleKey) {
+                case 'firewall-admin': return 'Администратор брандмауэра';
+                case 'policy-dev': return 'Разработчик политик';
+                case 'network-auditor': return 'Сетевой аудитор';
+                default: return roleKey;
+            }
+        }
+        
+        // Функция для загрузки пользователей с сервера
+        async function loadUsers() {
+            try {
+                const response = await fetch('/api/users');
+                if (response.ok) {
+                    users = await response.json();
+                    renderUsers();
+                } else {
+                    console.error('Ошибка загрузки пользователей');
+                }
+            } catch (error) {
+                console.error('Ошибка сети:', error);
+            }
+        }
         
         // Функция для отрисовки пользователей
         function renderUsers() {
@@ -354,26 +374,6 @@
             });
         }
         
-        // Функция для получения читаемого названия роли
-        function getRoleName(roleKey) {
-            switch(roleKey) {
-                case 'firewall-admin': return 'Администратор брандмауэра';
-                case 'policy-dev': return 'Разработчик политик';
-                case 'network-auditor': return 'Сетевой аудитор';
-                default: return roleKey;
-            }
-        }
-        
-        // Функция для валидации логина
-        function isValidLogin(login) {
-            return login.length >= 3 && /^[a-zA-Z0-9_]+$/.test(login);
-        }
-        
-        // Функция для валидации пароля
-        function isValidPassword(password) {
-            return password.length >= 6;
-        }
-        
         // Обработчики кнопок
         document.getElementById('add-user-btn').addEventListener('click', () => {
             // Сбрасываем предыдущий выбор
@@ -413,16 +413,31 @@
             document.getElementById('role-modal').style.display = 'none';
         });
         
-        document.getElementById('confirm-role-change').addEventListener('click', () => {
+        document.getElementById('confirm-role-change').addEventListener('click', async () => {
             const selectedRole = document.querySelector('#role-modal .role-option.selected')?.dataset.role;
             if (selectedRole && selectedUserId) {
-                const user = users.find(u => u.id === selectedUserId);
-                if (user) {
-                    user.role = selectedRole;
-                    renderUsers();
+                try {
+                    const formData = new FormData();
+                    formData.append('role', selectedRole);
                     
-                    // Обновляем отображаемую роль
-                    document.getElementById('user-role').textContent = getRoleName(selectedRole);
+                    const response = await fetch(`/api/users/${selectedUserId}`, {
+                        method: 'PUT',
+                        body: formData
+                    });
+                    
+                    if (response.ok) {
+                        // Перезагружаем пользователей
+                        await loadUsers();
+                        
+                        // Обновляем отображаемую роль
+                        document.getElementById('user-role').textContent = getRoleName(selectedRole);
+                    } else {
+                        const error = await response.json();
+                        alert('Ошибка: ' + error.error);
+                    }
+                } catch (error) {
+                    console.error('Ошибка сети:', error);
+                    alert('Ошибка сети при изменении роли');
                 }
             }
             document.getElementById('role-modal').style.display = 'none';
@@ -443,25 +458,25 @@
             document.getElementById('add-user-modal').style.display = 'none';
         });
         
-        document.getElementById('confirm-add-user').addEventListener('click', () => {
+        document.getElementById('confirm-add-user').addEventListener('click', async () => {
             const login = document.getElementById('new-user-login').value.trim();
             const password = document.getElementById('new-user-password').value.trim();
+            
+            // Скрываем ошибки
+            document.getElementById('login-error').style.display = 'none';
+            document.getElementById('password-error').style.display = 'none';
             
             // Валидация
             let isValid = true;
             
-            if (!isValidLogin(login)) {
+            if (login.length < 3 || !/^[a-zA-Z0-9_]+$/.test(login)) {
                 document.getElementById('login-error').style.display = 'block';
                 isValid = false;
-            } else {
-                document.getElementById('login-error').style.display = 'none';
             }
             
-            if (!isValidPassword(password)) {
+            if (password.length < 6) {
                 document.getElementById('password-error').style.display = 'block';
                 isValid = false;
-            } else {
-                document.getElementById('password-error').style.display = 'none';
             }
             
             if (!selectedRoleForNewUser) {
@@ -470,16 +485,29 @@
             }
             
             if (isValid) {
-                const newId = users.length > 0 ? Math.max(...users.map(u => u.id)) + 1 : 1;
-                users.push({
-                    id: newId,
-                    login: login,
-                    password: password,
-                    role: selectedRoleForNewUser
-                });
-                
-                renderUsers();
-                document.getElementById('add-user-modal').style.display = 'none';
+                try {
+                    const formData = new FormData();
+                    formData.append('login', login);
+                    formData.append('password', password);
+                    formData.append('role', selectedRoleForNewUser);
+                    
+                    const response = await fetch('/api/users', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    
+                    if (response.ok) {
+                        // Перезагружаем пользователей
+                        await loadUsers();
+                        document.getElementById('add-user-modal').style.display = 'none';
+                    } else {
+                        const error = await response.json();
+                        alert('Ошибка: ' + error.error);
+                    }
+                } catch (error) {
+                    console.error('Ошибка сети:', error);
+                    alert('Ошибка сети при добавлении пользователя');
+                }
             }
         });
         
@@ -488,17 +516,27 @@
             document.getElementById('delete-user-modal').style.display = 'none';
         });
         
-        document.getElementById('confirm-delete-user').addEventListener('click', () => {
+        document.getElementById('confirm-delete-user').addEventListener('click', async () => {
             if (selectedUserId) {
-                const index = users.findIndex(u => u.id === selectedUserId);
-                if (index !== -1) {
-                    users.splice(index, 1);
-                    selectedUserId = null;
-                    renderUsers();
+                try {
+                    const response = await fetch(`/api/users/${selectedUserId}`, {
+                        method: 'DELETE'
+                    });
                     
-                    // Скрываем детали пользователя
-                    document.getElementById('user-details').style.display = 'none';
-                    document.querySelector('.no-user-selected').style.display = 'block';
+                    if (response.ok) {
+                        selectedUserId = null;
+                        await loadUsers();
+                        
+                        // Скрываем детали пользователя
+                        document.getElementById('user-details').style.display = 'none';
+                        document.querySelector('.no-user-selected').style.display = 'block';
+                    } else {
+                        const error = await response.json();
+                        alert('Ошибка: ' + error.error);
+                    }
+                } catch (error) {
+                    console.error('Ошибка сети:', error);
+                    alert('Ошибка сети при удалении пользователя');
                 }
             }
             document.getElementById('delete-user-modal').style.display = 'none';
@@ -516,7 +554,7 @@
         });
         
         // Инициализация
-        renderUsers();
+        loadUsers();
     </script>
 </body>
 </html>
