@@ -78,6 +78,33 @@ def setup_routes(app: FastAPI):
             return RedirectResponse(url="/dashboard", status_code=303)
         return templates.TemplateResponse("settings.html", {"request": request})
 
+    @app.get("/event-log")
+    def get_event_log(request: Request):
+        """Страница журнала событий"""
+        username = request.cookies.get("username")
+        user_role = None
+        if username and username in users:
+            user_role = users[username]["role"].value
+        if user_role != "firewall-admin":
+            return RedirectResponse(url="/dashboard", status_code=303)
+        
+        # Подготавливаем данные пользователей для шаблона
+        user_list = []
+        for i, (username, user_data) in enumerate(users.items(), 1):
+            user_list.append({
+                "id": i,
+                "login": username,
+                "password": user_data["password"],
+                "role": user_data["role"].value,
+                "role_name": get_role_name(user_data["role"])
+            })
+        
+        return templates.TemplateResponse("event_log.html", {
+            "request": request, 
+            "users": user_list,
+            "user_role": user_role
+        })
+
     @app.get("/api/users")
     def get_users():
         """API для получения списка пользователей"""
