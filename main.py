@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 import db_config
-from app.database import create_users_table
+from app.database import startup_event
 from app.middleware import setup_middleware
 from app.routes import setup_routes
 
@@ -14,9 +14,9 @@ setup_middleware(app)
 setup_routes(app)
 
 # Инициализируем базу данных при запуске
-@app.get("/")
+@app.on_event("startup")
 async def startup():
-    await create_users_table()
+    await startup_event()
 
 if __name__ == "__main__":
     import uvicorn
