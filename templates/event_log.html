@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Журнал событий</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -141,6 +142,32 @@
             font-style: italic;
             margin-top: 20px;
         }
+        
+        .clear-sessions-btn {
+            background-color: #dc3545;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 10px;
+        }
+        
+        .clear-sessions-btn:hover {
+            background-color: #c82333;
+            transform: translateY(-1px);
+            box-shadow: 0 2px 4px rgba(220, 53, 69, 0.3);
+        }
+        
+        .clear-sessions-btn:active {
+            transform: translateY(0);
+        }
     </style>
 </head>
 <body>
@@ -180,6 +207,7 @@
         </div>
         <div class="sidebar-buttons">
             <button onclick="window.location.href='/dashboard'">Назад</button>
+            <button onclick="logout()" style="background-color: #dc3545;">Выйти</button>
         </div>
     </div>
     <div class="main-content">
@@ -205,6 +233,11 @@
                         <span class="info-label">Время онлайн:</span>
                         <span id="user-online-time"></span>
                     </div>
+                    <div class="info-row">
+                        <button id="clear-user-sessions-btn" onclick="clearUserSessions()" class="clear-sessions-btn" style="display: none;">
+                            <i class="fas fa-trash"></i> Очистить сессии пользователя
+                        </button>
+                    </div>
                 </div>
                 <!-- Две рамки под верхней -->
                 <div class="activity-container">
@@ -223,60 +256,76 @@
     <script>
         // Данные пользователей из сервера
         const userData = {{ users|tojson }};
-        // Для примера: сессии и действия (в реальном проекте — с сервера)
-        const userSessions = {};
-        const userActions = {};
-        // Для примера: статусы и время входа/выхода (в реальном проекте — с сервера)
-        const userStatus = {};
-        // Пример заполнения (можно заменить на API)
-        userData.forEach(u => {
-            userSessions[u.id] = [
-                {type: 'login', time: '2024-06-01 10:00:00'},
-                {type: 'logout', time: '2024-06-01 12:34:56'}
-            ];
-            userActions[u.id] = [
-                {action: 'Изменил настройки', time: '2024-06-01 11:00:00'},
-                {action: 'Просмотрел журнал', time: '2024-06-01 11:30:00'}
-            ];
-            userStatus[u.id] = {
-                online: u.id === 1, // только первый онлайн для примера
-                loginTime: '2024-06-01 10:00:00',
-                logoutTime: u.id === 1 ? null : '2024-06-01 12:34:56',
-                onlineDuration: u.id === 1 ? null : 9056 // секунды
-            };
-        });
         let selectedUserId = null;
         let onlineTimer = null;
-        function selectUser(userId) {
-            // Удаляем выделение у всех пользователей
-            document.querySelectorAll('.user-item').forEach(el => {
-                el.classList.remove('selected');
-            });
-            // Добавляем выделение текущему пользователю
-            event.target.classList.add('selected');
-            // Показываем детали пользователя
-            document.getElementById('user-details').style.display = 'block';
-            document.querySelector('.no-user-selected').style.display = 'none';
-            // Находим данные пользователя
+        let activityUpdateTimer = null;
+
+        // Функция для получения пользователей онлайн
+        async function fetchOnlineUsers() {
+            try {
+                const response = await fetch('/api/online-users');
+                const onlineUsers = await response.json();
+                
+                // Обновляем статусы пользователей
+                userData.forEach(user => {
+                    const isOnline = onlineUsers.some(onlineUser => onlineUser.username === user.login);
+                    user.isOnline = isOnline;
+                    
+                    if (isOnline) {
+                        const onlineUser = onlineUsers.find(ou => ou.username === user.login);
+                        user.loginTime = onlineUser.login_time;
+                        user.lastActivity = onlineUser.last_activity;
+                        user.ipAddress = onlineUser.ip_address;
+                    }
+                });
+                
+                // Обновляем отображение, если выбран пользователь
+                if (selectedUserId) {
+                    updateUserDisplay(selectedUserId);
+                }
+            } catch (error) {
+                console.error('Ошибка при получении пользователей онлайн:', error);
+            }
+        }
+
+        // Функция для получения сессий пользователя
+        async function fetchUserSessions(userId) {
+            try {
+                const response = await fetch(`/api/user-sessions/${userId}`);
+                const sessions = await response.json();
+                return sessions;
+            } catch (error) {
+                console.error('Ошибка при получении сессий пользователя:', error);
+                return [];
+            }
+        }
+
+        // Функция для обновления отображения пользователя
+        async function updateUserDisplay(userId) {
             const user = userData.find(u => u.id === userId);
             if (!user) return;
+
             document.getElementById('user-login').textContent = user.login;
             document.getElementById('user-password').textContent = user.password;
+
             // Статус и время онлайн
-            const status = userStatus[userId];
             const statusText = document.getElementById('user-status-text');
             const statusDot = document.getElementById('user-status-dot');
             const onlineTime = document.getElementById('user-online-time');
-            if (status.online) {
+
+            if (user.isOnline) {
                 statusText.textContent = 'Онлайн';
                 statusDot.className = 'status-dot status-online';
-                // Реальное время онлайн
+                
+                // Обновляем время онлайн в реальном времени
                 if (onlineTimer) clearInterval(onlineTimer);
                 function updateOnlineTime() {
-                    const start = new Date(status.loginTime);
-                    const now = new Date();
-                    const diff = Math.floor((now - start) / 1000);
-                    onlineTime.textContent = formatDuration(diff);
+                    if (user.loginTime) {
+                        const start = new Date(user.loginTime);
+                        const now = new Date();
+                        const diff = Math.floor((now - start) / 1000);
+                        onlineTime.textContent = formatDuration(diff);
+                    }
                 }
                 updateOnlineTime();
                 onlineTimer = setInterval(updateOnlineTime, 1000);
@@ -284,38 +333,221 @@
                 statusText.textContent = 'Оффлайн';
                 statusDot.className = 'status-dot status-offline';
                 if (onlineTimer) clearInterval(onlineTimer);
-                // Фиксированное время онлайн
-                onlineTime.textContent = formatDuration(status.onlineDuration || 0);
+                onlineTime.textContent = '00:00:00';
             }
-            // История сессий
-            const sessions = userSessions[userId] || [];
+
+            // Получаем и отображаем сессии пользователя
+            const sessions = await fetchUserSessions(userId);
             const sessionsList = document.getElementById('sessions-list');
             sessionsList.innerHTML = '';
-            sessions.slice().reverse().forEach(s => {
-                const msg = s.type === 'login' ? `Авторизовался на сайте (${s.time})` : `Вышел с сайта (${s.time})`;
+            
+            sessions.slice().reverse().forEach(session => {
                 const div = document.createElement('div');
                 div.className = 'activity-item';
-                div.textContent = msg;
+                
+                const loginTime = new Date(session.login_time).toLocaleString('ru-RU');
+                let logoutTime;
+                let sessionDuration = '';
+                
+                if (session.logout_time) {
+                    // Есть время выхода - показываем его
+                    const logoutDate = new Date(session.logout_time);
+                    logoutTime = logoutDate.toLocaleString('ru-RU');
+                    
+                    // Вычисляем длительность сессии
+                    const loginDate = new Date(session.login_time);
+                    const duration = Math.floor((logoutDate - loginDate) / 1000);
+                    sessionDuration = ` (${formatDuration(duration)})`;
+                } else if (session.is_online) {
+                    // Нет времени выхода, но сессия активна - значит пользователь еще онлайн
+                    logoutTime = 'Активна';
+                    
+                    // Вычисляем текущую длительность сессии
+                    const loginDate = new Date(session.login_time);
+                    const now = new Date();
+                    const duration = Math.floor((now - loginDate) / 1000);
+                    sessionDuration = ` (${formatDuration(duration)})`;
+                } else {
+                    // Нет времени выхода и сессия неактивна - аномальная ситуация
+                    logoutTime = 'Не завершена';
+                }
+                
+                const status = session.is_online ? 'Онлайн' : 'Оффлайн';
+                const ip = session.ip_address || 'Неизвестно';
+                
+                div.innerHTML = `
+                    <strong>${status}</strong><br>
+                    Вход: ${loginTime}<br>
+                    Выход: ${logoutTime}${sessionDuration}<br>
+                    IP: ${ip}
+                `;
                 sessionsList.appendChild(div);
             });
-            // Недавние действия
-            const actions = userActions[userId] || [];
+
+            // Отображаем недавние действия (можно расширить в будущем)
             const actionsList = document.getElementById('actions-list');
             actionsList.innerHTML = '';
-            actions.slice().reverse().forEach(a => {
+            
+            // Показываем последнюю активность
+            if (user.lastActivity) {
                 const div = document.createElement('div');
                 div.className = 'activity-item';
-                div.textContent = `${a.action} (${a.time})`;
+                div.innerHTML = `
+                    <strong>Последняя активность:</strong><br>
+                    ${new Date(user.lastActivity).toLocaleString('ru-RU')}
+                `;
                 actionsList.appendChild(div);
-            });
-            selectedUserId = userId;
+            }
+
+            // Показываем IP-адрес, если пользователь онлайн
+            if (user.isOnline && user.ipAddress) {
+                const div = document.createElement('div');
+                div.className = 'activity-item';
+                div.innerHTML = `
+                    <strong>Текущий IP:</strong><br>
+                    ${user.ipAddress}
+                `;
+                actionsList.appendChild(div);
+            }
+
+            // Показываем кнопку очистки сессий
+            document.getElementById('clear-user-sessions-btn').style.display = 'block';
         }
+
+        function selectUser(userId) {
+            // Удаляем выделение у всех пользователей
+            document.querySelectorAll('.user-item').forEach(el => {
+                el.classList.remove('selected');
+            });
+            // Добавляем выделение текущему пользователю
+            event.target.classList.add('selected');
+            
+            // Показываем детали пользователя
+            document.getElementById('user-details').style.display = 'block';
+            document.querySelector('.no-user-selected').style.display = 'none';
+            
+            selectedUserId = userId;
+            updateUserDisplay(userId);
+        }
+
         function formatDuration(sec) {
             const h = String(Math.floor(sec/3600)).padStart(2,'0');
             const m = String(Math.floor((sec%3600)/60)).padStart(2,'0');
             const s = String(sec%60).padStart(2,'0');
             return `${h}:${m}:${s}`;
         }
+
+        async function cleanupSessions() {
+            if (confirm('Вы уверены, что хотите очистить аномальные сессии?')) {
+                try {
+                    const response = await fetch('/api/cleanup-sessions', {
+                        method: 'POST'
+                    });
+                    const result = await response.json();
+                    
+                    if (result.success) {
+                        alert('Аномальные сессии очищены успешно!');
+                        // Обновляем отображение, если выбран пользователь
+                        if (selectedUserId) {
+                            updateUserDisplay(selectedUserId);
+                        }
+                    } else {
+                        alert('Ошибка при очистке сессий: ' + result.error);
+                    }
+                } catch (error) {
+                    alert('Ошибка при очистке сессий: ' + error);
+                }
+            }
+        }
+
+        // Функция выхода из системы
+        async function logout() {
+            try {
+                // Получаем токен сессии из куки
+                const sessionToken = getCookie('session_token');
+                
+                if (sessionToken) {
+                    // Отправляем запрос на завершение сессии
+                    const response = await fetch('/api/user-logout', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/x-www-form-urlencoded',
+                        },
+                        body: `session_token=${sessionToken}`
+                    });
+                    
+                    if (response.ok) {
+                        console.log('Сессия завершена успешно');
+                    } else {
+                        console.error('Ошибка при завершении сессии');
+                    }
+                }
+                
+                // Перенаправляем на страницу входа
+                window.location.href = '/logout';
+            } catch (error) {
+                console.error('Ошибка при выходе:', error);
+                // В любом случае перенаправляем на страницу входа
+                window.location.href = '/logout';
+            }
+        }
+
+        // Функция для получения значения куки
+        function getCookie(name) {
+            const value = `; ${document.cookie}`;
+            const parts = value.split(`; ${name}=`);
+            if (parts.length === 2) return parts.pop().split(';').shift();
+            return null;
+        }
+
+        // Функция для очистки сессий конкретного пользователя
+        async function clearUserSessions() {
+            if (!selectedUserId) {
+                alert('Пожалуйста, выберите пользователя');
+                return;
+            }
+
+            const user = userData.find(u => u.id === selectedUserId);
+            if (!user) {
+                alert('Пользователь не найден');
+                return;
+            }
+
+            if (confirm(`Вы уверены, что хотите очистить все сессии пользователя "${user.login}"?\n\nЭто действие:\n• Завершит все активные сессии пользователя\n• Удалит ВСЕ оффлайн сессии (включая недавние)\n• Удалит старые онлайн сессии (старше 24 часов)\n• Пользователь будет вынужден войти заново`)) {
+                try {
+                    const response = await fetch(`/api/cleanup-user-sessions/${selectedUserId}`, {
+                        method: 'POST'
+                    });
+                    const result = await response.json();
+                    
+                    if (result.success) {
+                        alert(`✅ ${result.message}`);
+                        // Обновляем отображение пользователя
+                        updateUserDisplay(selectedUserId);
+                    } else {
+                        alert('❌ Ошибка при очистке сессий: ' + result.error);
+                    }
+                } catch (error) {
+                    alert('❌ Ошибка при очистке сессий: ' + error);
+                }
+            }
+        }
+
+        // Инициализация при загрузке страницы
+        document.addEventListener('DOMContentLoaded', function() {
+            // Загружаем данные пользователей онлайн
+            fetchOnlineUsers();
+            
+            // Обновляем данные каждые 30 секунд
+            setInterval(fetchOnlineUsers, 30000);
+            
+            // Обновляем активность выбранного пользователя каждые 10 секунд
+            setInterval(() => {
+                if (selectedUserId) {
+                    updateUserDisplay(selectedUserId);
+                }
+            }, 10000);
+        });
     </script>
 </body>
 </html>
