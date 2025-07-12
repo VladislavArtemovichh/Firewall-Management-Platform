@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Правила межсетевого экрана</title>
+    <!-- Если у вас нет favicon.png, добавьте его в папку static или уберите строку ниже -->
+    <!--<link rel="icon" type="image/png" href="/static/favicon.png">-->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --primary: #1a3a5f;
+            --secondary: #2c5282;
+            --danger: #e53e3e;
+            --warning: #dd6b20;
+            --success: #38a169;
+            --dark: #1a202c;
+            --light: #f7fafc;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #edf2f7;
+            color: var(--dark);
+            margin: 0;
+            padding: 0;
+        }
+        .main-content {
+            max-width: 1200px;
+            margin: 40px auto 0 auto;
+            padding: 20px;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.07);
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid #cbd5e0;
+        }
+        .header-title {
+            font-size: 2rem;
+            color: var(--primary);
+        }
+        .btn {
+            padding: 8px 16px;
+            border-radius: 5px;
+            border: none;
+            cursor: pointer;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.3s;
+        }
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+        }
+        .btn-danger {
+            background: var(--danger);
+            color: white;
+        }
+        .btn-warning {
+            background: var(--warning);
+            color: white;
+        }
+        .btn-success {
+            background: var(--success);
+            color: white;
+        }
+        .btn:hover {
+            opacity: 0.9;
+            transform: translateY(-2px);
+        }
+        .rules-table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            margin-bottom: 30px;
+        }
+        .rules-table th, .rules-table td {
+            padding: 12px 15px;
+            border-bottom: 1px solid #edf2f7;
+            text-align: left;
+        }
+        .rules-table th {
+            background: #f7fafc;
+            color: #4a5568;
+            font-weight: 600;
+        }
+        .rules-table tr:last-child td {
+            border-bottom: none;
+        }
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 40px;
+            height: 22px;
+        }
+        .switch input {display:none;}
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+            border-radius: 22px;
+        }
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 18px;
+            width: 18px;
+            left: 2px;
+            bottom: 2px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+        input:checked + .slider {
+            background-color: var(--success);
+        }
+        input:checked + .slider:before {
+            transform: translateX(18px);
+        }
+        .actions {
+            display: flex;
+            gap: 8px;
+        }
+        .section-title {
+            color: var(--primary);
+            font-size: 1.2rem;
+            font-weight: 600;
+        }
+        .back-btn {
+            position: fixed;
+            left: 30px;
+            bottom: 30px;
+            z-index: 100;
+            padding: 8px 12px;
+            background-color: #4a7dff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            transition: background 0.2s;
+        }
+        .back-btn:hover {
+            background-color: #3a6de8;
+        }
+        /* Модальное окно */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0; top: 0; width: 100vw; height: 100vh;
+            background: rgba(0,0,0,0.3);
+            justify-content: center;
+            align-items: center;
+        }
+        .modal-content {
+            background: white;
+            border-radius: 10px;
+            padding: 30px 30px 20px 30px;
+            min-width: 320px;
+            max-width: 90vw;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.15);
+        }
+        .modal-title {
+            font-size: 1.2rem;
+            font-weight: 600;
+            margin-bottom: 18px;
+        }
+        .modal-row {
+            margin-bottom: 12px;
+        }
+        .modal-row label {
+            display: block;
+            margin-bottom: 4px;
+            color: #555;
+        }
+        .modal-row input, .modal-row select, .modal-row textarea {
+            width: 320px;
+            min-width: 320px;
+            max-width: 320px;
+            box-sizing: border-box;
+            padding: 7px 10px;
+            border: 1px solid #cbd5e0;
+            border-radius: 4px;
+            font-size: 1rem;
+        }
+        .modal-buttons {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            margin-top: 18px;
+        }
+        .cancel-btn {
+            background-color: #ccc;
+            color: #222;
+            border: none;
+            border-radius: 4px;
+            padding: 8px 16px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .cancel-btn:hover {
+            background-color: #bbb;
+        }
+        @media (max-width: 900px) {
+            .main-content { padding: 10px; margin: 0; border-radius: 0; }
+        }
+    </style>
+</head>
+<body>
+    <div class="main-content">
+        <div class="header">
+            <span class="header-title">Правила доступа</span>
+            <div style="display: flex; gap: 10px;">
+                <button class="btn btn-primary" onclick="openRuleModal()"><i class="fas fa-plus"></i> Добавить правило</button>
+            </div>
+        </div>
+        <div style="margin-bottom: 40px;">
+            <h3 class="section-title" style="margin-bottom: 10px;">Включенные правила</h3>
+            <table class="rules-table" id="enabled-rules-table">
+                <thead>
+                    <tr>
+                        <th></th>
+                        <th>Название</th>
+                        <th>Протокол</th>
+                        <th>Порт</th>
+                        <th>Направление</th>
+                        <th>Действие</th>
+                        <th>Комментарий</th>
+                        <th>Редактирование</th>
+                    </tr>
+                </thead>
+                <tbody id="enabled-rules-tbody"></tbody>
+            </table>
+        </div>
+        <div>
+            <h3 class="section-title" style="margin-bottom: 10px;">Выключенные правила</h3>
+            <table class="rules-table" id="disabled-rules-table">
+                <thead>
+                    <tr>
+                        <th></th>
+                        <th>Название</th>
+                        <th>Протокол</th>
+                        <th>Порт</th>
+                        <th>Направление</th>
+                        <th>Действие</th>
+                        <th>Комментарий</th>
+                        <th>Редактирование</th>
+                    </tr>
+                </thead>
+                <tbody id="disabled-rules-tbody"></tbody>
+            </table>
+        </div>
+    </div>
+    <!-- Кнопка "Назад" -->
+    <button class="back-btn" onclick="window.location.href='/dashboard'"><i class="fas fa-arrow-left"></i> Назад</button>
+
+    <!-- Модальное окно подтверждения удаления -->
+    <div class="modal" id="delete-modal">
+        <div class="modal-content">
+            <div class="modal-title">Удаление правила</div>
+            <div class="delete-modal-text" id="delete-modal-text">Вы уверены, что хотите удалить это правило?</div>
+            <div class="modal-buttons">
+                <button class="cancel-btn" id="cancel-delete-rule">Отмена</button>
+                <button class="btn btn-danger" id="confirm-delete-rule">Удалить</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модальное окно для добавления/редактирования правила -->
+    <div class="modal" id="rule-modal">
+        <div class="modal-content">
+            <div class="modal-title" id="modal-title">Новое правило</div>
+            <form id="rule-form">
+                <input type="hidden" id="rule-id">
+                <div class="modal-row">
+                    <label for="rule-name">Название</label>
+                    <input type="text" id="rule-name" required>
+                </div>
+                <div class="modal-row">
+                    <label for="rule-protocol">Протокол</label>
+                    <select id="rule-protocol">
+                        <option value="any">Любой</option>
+                        <option value="tcp">TCP</option>
+                        <option value="udp">UDP</option>
+                        <option value="icmp">ICMP</option>
+                    </select>
+                </div>
+                <div class="modal-row">
+                    <label for="rule-port">Порт (или диапазон)</label>
+                    <input type="text" id="rule-port" placeholder="например, 80 или 1000-2000">
+                </div>
+                <div class="modal-row">
+                    <label for="rule-direction">Направление</label>
+                    <select id="rule-direction">
+                        <option value="any">Любое</option>
+                        <option value="inbound">Входящее</option>
+                        <option value="outbound">Исходящее</option>
+                    </select>
+                </div>
+                <div class="modal-row">
+                    <label for="rule-action">Действие</label>
+                    <select id="rule-action">
+                        <option value="allow">Разрешить</option>
+                        <option value="deny">Запретить</option>
+                    </select>
+                </div>
+                <div class="modal-row">
+                    <label for="rule-enabled">Включено</label>
+                    <input type="checkbox" id="rule-enabled" checked>
+                </div>
+                <div class="modal-row">
+                    <label for="rule-comment">Комментарий</label>
+                    <textarea id="rule-comment" rows="2"></textarea>
+                </div>
+                <div class="modal-buttons">
+                    <button type="button" class="btn btn-secondary" onclick="closeRuleModal()">Отмена</button>
+                    <button type="submit" class="btn btn-primary">Сохранить</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+<script>
+// --- Работа с API ---
+async function fetchRules() {
+    const res = await fetch('/api/rules');
+    return await res.json();
+}
+async function addRule(data) {
+    const form = new FormData();
+    for (const k in data) form.append(k, data[k]);
+    return await fetch('/api/rules', {method: 'POST', body: form});
+}
+async function updateRule(id, data) {
+    const form = new FormData();
+    for (const k in data) form.append(k, data[k]);
+    return await fetch(`/api/rules/${id}`, {method: 'PUT', body: form});
+}
+async function deleteRule(id) {
+    return await fetch(`/api/rules/${id}`, {method: 'DELETE'});
+}
+async function toggleRule(id) {
+    return await fetch(`/api/rules/${id}/toggle`, {method: 'POST'});
+}
+
+// --- Рендер таблиц ---
+async function renderRules() {
+    const rules = await fetchRules();
+    const enabledTbody = document.getElementById('enabled-rules-tbody');
+    const disabledTbody = document.getElementById('disabled-rules-tbody');
+    enabledTbody.innerHTML = '';
+    disabledTbody.innerHTML = '';
+    for (const rule of rules) {
+        const tr = document.createElement('tr');
+        // Чекбокс включения/выключения рядом с названием
+        const tdCheck = document.createElement('td');
+        tdCheck.innerHTML = `<input type='checkbox' ${rule.enabled ? 'checked' : ''} onchange='onToggleRule(${rule.id})'>`;
+        tr.appendChild(tdCheck);
+        // Название
+        tr.innerHTML += `<td>${rule.name}</td>`;
+        // Протокол
+        tr.innerHTML += `<td>${rule.protocol === 'any' ? 'Любой' : rule.protocol.toUpperCase()}</td>`;
+        // Порт
+        tr.innerHTML += `<td>${rule.port || ''}</td>`;
+        // Направление
+        tr.innerHTML += `<td>${directionName(rule.direction)}</td>`;
+        // Действие
+        tr.innerHTML += `<td>${actionName(rule.action)}</td>`;
+        // Комментарий
+        tr.innerHTML += `<td>${rule.comment || ''}</td>`;
+        // Изменить
+        const tdEdit = document.createElement('td');
+        tdEdit.className = 'actions';
+        tdEdit.innerHTML = `
+            <button class='btn btn-primary' style='background: var(--primary); color: white; margin-right: 8px;' title='Изменить' onclick='onEditRule(${rule.id})'><i class='fas fa-edit'></i> Изменить</button>
+            <button class='btn btn-danger' style='background: #e53e3e; color: white;' title='Удалить' onclick='onDeleteRule(${rule.id})'><i class='fas fa-trash'></i> Удалить</button>
+        `;
+        tr.appendChild(tdEdit);
+        if (rule.enabled) {
+            enabledTbody.appendChild(tr);
+        } else {
+            disabledTbody.appendChild(tr);
+        }
+    }
+}
+function directionName(val) {
+    if (val === 'inbound') return 'Входящее';
+    if (val === 'outbound') return 'Исходящее';
+    return 'Любое';
+}
+function actionName(val) {
+    if (val === 'allow') return 'Разрешить';
+    if (val === 'deny') return 'Запретить';
+    return val;
+}
+// --- Модальное окно ---
+function openRuleModal(editId = null) {
+    document.getElementById('rule-modal').style.display = 'flex';
+    document.getElementById('rule-form').reset();
+    document.getElementById('rule-id').value = '';
+    document.getElementById('modal-title').innerText = editId ? 'Редактировать правило' : 'Новое правило';
+    if (editId) fillRuleForm(editId);
+}
+function closeRuleModal() {
+    document.getElementById('rule-modal').style.display = 'none';
+}
+async function fillRuleForm(id) {
+    const rules = await fetchRules();
+    const rule = rules.find(r => r.id === id);
+    if (!rule) return;
+    document.getElementById('rule-id').value = rule.id;
+    document.getElementById('rule-name').value = rule.name;
+    document.getElementById('rule-protocol').value = rule.protocol;
+    document.getElementById('rule-port').value = rule.port || '';
+    document.getElementById('rule-direction').value = rule.direction;
+    document.getElementById('rule-action').value = rule.action;
+    document.getElementById('rule-enabled').checked = rule.enabled;
+    document.getElementById('rule-comment').value = rule.comment || '';
+}
+document.getElementById('rule-form').onsubmit = async function(e) {
+    e.preventDefault();
+    const id = document.getElementById('rule-id').value;
+    const data = {
+        name: document.getElementById('rule-name').value,
+        protocol: document.getElementById('rule-protocol').value,
+        port: document.getElementById('rule-port').value,
+        direction: document.getElementById('rule-direction').value,
+        action: document.getElementById('rule-action').value,
+        enabled: document.getElementById('rule-enabled').checked,
+        comment: document.getElementById('rule-comment').value
+    };
+    if (id) {
+        await updateRule(id, data);
+    } else {
+        await addRule(data);
+    }
+    closeRuleModal();
+    await renderRules();
+};
+// --- Удаление выбранного правила ---
+// Удаляю весь блок:
+// document.getElementById('delete-selected-btn').onclick = async function() { ... }
+// --- Выход ---
+function logout() {
+    window.location.href = '/logout';
+}
+// --- Инициализация ---
+window.addEventListener('DOMContentLoaded', renderRules);
+// --- JS для удаления через модальное окно ---
+let ruleIdToDelete = null;
+window.onDeleteRule = function(id) {
+    ruleIdToDelete = id;
+    document.getElementById('delete-modal').style.display = 'flex';
+};
+document.getElementById('cancel-delete-rule').onclick = function() {
+    ruleIdToDelete = null;
+    document.getElementById('delete-modal').style.display = 'none';
+};
+document.getElementById('confirm-delete-rule').onclick = async function() {
+    if (ruleIdToDelete) {
+        await deleteRule(ruleIdToDelete);
+        ruleIdToDelete = null;
+        document.getElementById('delete-modal').style.display = 'none';
+        await renderRules();
+    }
+};
+window.onToggleRule = async function(id) {
+    await toggleRule(id);
+    await renderRules();
+};
+window.onEditRule = async function(id) {
+    openRuleModal(id);
+    await fillRuleForm(id);
+};
+</script>
+</body>
+</html>
