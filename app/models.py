@@ -13,6 +13,7 @@ class UserRole(str, Enum):
     FIREWALL_ADMIN = "firewall-admin"
     POLICY_DEV = "policy-dev"
     NETWORK_AUDITOR = "network-auditor"
+    USER = "user"
 
 # Тестовые пользователи с ролями (в продакшене должны быть в базе данных)
 users = {
@@ -29,6 +30,7 @@ def get_role_name(role: UserRole) -> str:
     role_names = {
         UserRole.FIREWALL_ADMIN: "Администратор брандмауэра",
         UserRole.POLICY_DEV: "Разработчик политик",
-        UserRole.NETWORK_AUDITOR: "Сетевой аудитор"
+        UserRole.NETWORK_AUDITOR: "Сетевой аудитор",
+        UserRole.USER: "Пользователь"
     }
     return role_names.get(role, str(role)) 
