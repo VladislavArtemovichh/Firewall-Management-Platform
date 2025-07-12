@@ -214,6 +214,11 @@
             <div class="user-list-role" id="network-auditor">
                 <!-- Пользователи будут добавляться здесь -->
             </div>
+            
+            <div class="user-role">Пользователь</div>
+            <div class="user-list-role" id="user">
+                <!-- Пользователи будут добавляться здесь -->
+            </div>
         </div>
         
         <div class="sidebar-buttons">
@@ -229,16 +234,6 @@
         <div class="user-details" id="user-details-container">
             <div class="no-user-selected">Выберите пользователя из списка слева</div>
             <div id="user-details" style="display: none;">
-                <div class="detail-row">
-                    <div class="detail-label">Логин</div>
-                    <div class="detail-value" id="user-login"></div>
-                </div>
-                
-                <div class="detail-row">
-                    <div class="detail-label">Пароль</div>
-                    <div class="detail-value" id="user-password"></div>
-                </div>
-                
                 <div class="detail-row">
                     <div class="detail-label">Роль пользователя</div>
                     <div class="detail-value" id="user-role"></div>
@@ -257,6 +252,7 @@
             <div class="role-option" data-role="firewall-admin">Администратор брандмауэра</div>
             <div class="role-option" data-role="policy-dev">Разработчик политик</div>
             <div class="role-option" data-role="network-auditor">Сетевой аудитор</div>
+            <div class="role-option" data-role="user">Пользователь</div>
             
             <div class="modal-buttons">
                 <button class="cancel-btn" id="cancel-role-change">Отмена</button>
@@ -283,6 +279,7 @@
             <div class="role-option" data-role="firewall-admin">Администратор брандмауэра</div>
             <div class="role-option" data-role="policy-dev">Разработчик политик</div>
             <div class="role-option" data-role="network-auditor">Сетевой аудитор</div>
+            <div class="role-option" data-role="user">Пользователь</div>
             
             <div class="modal-buttons">
                 <button class="cancel-btn" id="cancel-add-user">Отмена</button>
@@ -315,6 +312,7 @@
                 case 'firewall-admin': return 'Администратор брандмауэра';
                 case 'policy-dev': return 'Разработчик политик';
                 case 'network-auditor': return 'Сетевой аудитор';
+                case 'user': return 'Пользователь';
                 default: return roleKey;
             }
         }
@@ -340,6 +338,7 @@
             document.getElementById('firewall-admin').innerHTML = '';
             document.getElementById('policy-dev').innerHTML = '';
             document.getElementById('network-auditor').innerHTML = '';
+            document.getElementById('user').innerHTML = ''; // Очищаем список пользователей с ролью "user"
             
             // Добавляем пользователей в соответствующие списки
             users.forEach(user => {
@@ -362,8 +361,6 @@
                     document.querySelector('.no-user-selected').style.display = 'none';
                     
                     // Заполняем данные пользователя
-                    document.getElementById('user-login').textContent = user.login;
-                    document.getElementById('user-password').textContent = user.password;
                     document.getElementById('user-role').textContent = getRoleName(user.role);
                     
                     // Запоминаем выбранного пользователя
