@@ -1,6 +1,6 @@
 # Firewall Management Platform
 
-## Запуск проекта
+## Запуск проекта (ручной способ)
 
 1. **Клонируйте репозиторий и перейдите в папку проекта:**
    ```bash
@@ -27,23 +27,63 @@
    uvicorn main:app --reload
    ```
    
-   Приложение будет доступно по адресу: http://127.0.0.1:8000
+   Приложение будет доступно по адресу: http://localhost:8000
 
----
+## Docker Compose (рекомендуется)
 
-- Все HTML-файлы находятся в папке `templates/`.
-- Основная логика приложения — в папке `app/`.
-- Точка входа — файл `main.py` в корне.
+### Быстрый запуск
 
-## Docker (опционально)
-
-1. **Соберите образ:**
+1. **Запустите все сервисы:**
    ```bash
-   docker build -t firewall-platform .
+   docker-compose up --build
    ```
-2. **Запустите контейнер:**
-   ```bash
-   docker run -p 8000:8000 firewall-platform
+
+2. **Откройте приложение в браузере:**
    ```
+   http://localhost:8000
+   ```
+
+### Управление контейнерами
+
+```bash
+# Запуск в фоновом режиме
+docker-compose up -d
+
+# Остановка
+docker-compose down
+
+# Просмотр логов
+docker-compose logs app
+docker-compose logs db
+
+# Перезапуск
+docker-compose restart
+```
+
+### Работа с базой данных
+
+**Подключение к PostgreSQL:**
+```bash
+docker-compose exec db psql -U firewall_user -d firewall_db
+```
+
+### Настройка Docker Compose
+
+Перед запуском в продакшене рекомендуется изменить следующие параметры в `docker-compose.yml`:
+
+#### **Безопасность:**
+```yaml
+# В сервисе db (текущие значения по умолчанию)
+environment:
+  POSTGRES_USER: firewall_user        # Изменить на уникальное имя
+  POSTGRES_PASSWORD: firewall_password # Изменить на сложный пароль
+  POSTGRES_DB: firewall_db            # Изменить название БД при необходимости
+
+# В сервисе app (должно совпадать с db)
+environment:
+  DB_USER: firewall_user              # То же значение, что и POSTGRES_USER
+  DB_PASSWORD: firewall_password      # То же значение, что и POSTGRES_PASSWORD
+  DB_NAME: firewall_db                # То же значение, что и POSTGRES_DB
+```
 
 ---
