@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Межсетевые экраны</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --primary: #1a3a5f;
+            --secondary: #2c5282;
+            --danger: #e53e3e;
+            --warning: #dd6b20;
+            --success: #38a169;
+            --dark: #1a202c;
+            --light: #f7fafc;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #edf2f7;
+            color: var(--dark);
+            margin: 0;
+            padding: 0;
+        }
+        .container {
+            display: flex;
+            min-height: 100vh;
+        }
+        .sidebar {
+            width: 300px;
+            background-color: #fff;
+            border-right: 1px solid #ddd;
+            height: 100vh;
+            padding: 20px 0 60px 0;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+        .tab-list {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .tab-item {
+            padding: 14px 30px;
+            cursor: pointer;
+            border-radius: 4px 0 0 4px;
+            margin: 2px 0;
+            font-size: 1.1rem;
+            color: var(--primary);
+            background: none;
+            border: none;
+            text-align: left;
+            transition: background 0.2s, color 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .tab-item.active, .tab-item:hover {
+            background-color: #e0e7ef;
+            color: var(--secondary);
+            font-weight: bold;
+        }
+        .back-btn {
+            position: absolute;
+            left: 30px;
+            bottom: 30px;
+            z-index: 100;
+            padding: 8px 12px;
+            background-color: #4a7dff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            transition: background 0.2s;
+        }
+        .back-btn:hover {
+            background-color: #3a6de8;
+        }
+        .main-content {
+            flex-grow: 1;
+            padding: 40px 40px 40px 40px;
+            background: white;
+            border-radius: 0 12px 12px 0;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.07);
+            margin: 40px 0 40px 0;
+            min-width: 0;
+            min-height: 80vh;
+        }
+        .tab-panel {
+            display: none;
+        }
+        .tab-panel.active {
+            display: block;
+        }
+        /* Стилизация таблицы */
+        .connections-table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            margin-bottom: 30px;
+        }
+        .connections-table th, .connections-table td {
+            padding: 10px 12px;
+            border-bottom: 1px solid #edf2f7;
+            text-align: left;
+            font-size: 0.98rem;
+        }
+        .connections-table th {
+            background: #f7fafc;
+            color: #4a5568;
+            font-weight: 600;
+        }
+        .connections-table tr:last-child td {
+            border-bottom: none;
+        }
+        /* Карта */
+        .map-container {
+            width: 100%;
+            height: 500px;
+            background: #e6eaf2;
+            border-radius: 10px;
+            margin-bottom: 30px;
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .map-placeholder {
+            color: #888;
+            font-size: 1.2rem;
+            text-align: center;
+        }
+        /* График */
+        .bandwidth-chart-container {
+            width: 100%;
+            height: 300px;
+            background: #f7fafc;
+            border-radius: 10px;
+            margin-bottom: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        /* Адаптеры */
+        .adapter-info {
+            background: #f7fafc;
+            border-radius: 10px;
+            margin-bottom: 18px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.04);
+            overflow: hidden;
+            transition: box-shadow 0.2s;
+        }
+        .adapter-title {
+            font-size: 1.1rem;
+            font-weight: bold;
+            color: var(--primary);
+            padding: 18px 30px 18px 30px;
+            margin: 0;
+            cursor: pointer;
+            user-select: none;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px solid #e0e7ef;
+            transition: background 0.2s;
+        }
+        .adapter-title:hover {
+            background: #e6eaf2;
+        }
+        .adapter-details {
+            padding: 14px 30px 18px 30px;
+            display: none;
+            animation: fadeInDown 0.3s;
+        }
+        .adapter-info.open .adapter-details {
+            display: block;
+        }
+        .adapter-arrow {
+            margin-left: 10px;
+            font-size: 1.1em;
+            transition: transform 0.2s;
+        }
+        .adapter-info.open .adapter-arrow {
+            transform: rotate(90deg);
+        }
+        @keyframes fadeInDown {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .adapter-row {
+            display: flex;
+            gap: 30px;
+            margin-bottom: 8px;
+        }
+        .adapter-label {
+            min-width: 160px;
+            color: #555;
+            font-weight: 500;
+        }
+        .adapter-value {
+            color: #222;
+        }
+        /* Адаптивность */
+        @media (max-width: 900px) {
+            .container { flex-direction: column; }
+            .sidebar { width: 100%; height: auto; border-right: none; border-bottom: 1px solid #ddd; }
+            .main-content { margin: 0; border-radius: 0 0 12px 12px; }
+        }
+        @media (max-width: 600px) {
+            .main-content { padding: 10px; }
+            .sidebar { padding: 10px 0 60px 0; }
+        }
+        /* Красивый select для группировки */
+        .group-select {
+            padding: 8px 16px;
+            border: 1.5px solid #bfc9db;
+            border-radius: 8px;
+            background: #f7fafc;
+            color: #1a3a5f;
+            font-size: 1rem;
+            outline: none;
+            transition: border 0.2s, box-shadow 0.2s;
+            box-shadow: 0 1px 2px rgba(74,125,255,0.04);
+            margin-top: 2px;
+        }
+        .group-select:focus {
+            border-color: #4a7dff;
+            box-shadow: 0 0 0 2px rgba(74,125,255,0.12);
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="sidebar">
+        <div class="tab-list">
+            <button class="tab-item active" onclick="showTab(0)"><i class="fas fa-list"></i> Список подключений</button>
+            <button class="tab-item" onclick="showTab(1)"><i class="fas fa-map-marked-alt"></i> Отображение подключений</button>
+            <button class="tab-item" onclick="showTab(2)"><i class="fas fa-chart-line"></i> Мониторинг полосы пропускания</button>
+            <button class="tab-item" onclick="showTab(3)"><i class="fas fa-network-wired"></i> Информация об адаптерах</button>
+        </div>
+        <button class="back-btn" onclick="window.location.href='/dashboard'">
+            <i class="fas fa-arrow-left"></i> Назад
+        </button>
+    </div>
+    <div class="main-content">
+        <!-- Список подключений -->
+        <div class="tab-panel active">
+            <h2>Список подключений</h2>
+            <table class="connections-table">
+                <thead>
+                    <tr>
+                        <th>Имя процесса</th>
+                        <th>Протокол</th>
+                        <th>Локальный адрес</th>
+                        <th>Локальный порт</th>
+                        <th>Удалённый адрес</th>
+                        <th>Удалённый порт</th>
+                        <th>Статус</th>
+                        <th>Время создания</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr><td>Microsoft.Web.Server.Http</td><td>TCP</td><td>127.0.0.1</td><td>51548</td><td>5.62.251.151</td><td>443</td><td>ESTABLISHED</td><td>6/23/2015 21:15</td></tr>
+                    <tr><td>OneDrive.exe</td><td>TCP</td><td>192.168.1.2</td><td>60160</td><td>157.55.124.123</td><td>443</td><td>ESTABLISHED</td><td>6/23/2015 21:15</td></tr>
+                    <tr><td>SearchUI.exe</td><td>TCP</td><td>192.168.1.2</td><td>60161</td><td>204.79.197.200</td><td>80</td><td>CLOSE_WAIT</td><td>6/23/2015 21:15</td></tr>
+                    <!-- ... другие строки ... -->
+                </tbody>
+            </table>
+        </div>
+        <!-- Отображение подключений -->
+        <div class="tab-panel">
+            <h2>Отображение подключений</h2>
+            <div class="map-container">
+                <div class="map-placeholder">
+                    <i class="fas fa-globe-europe fa-3x"></i><br>
+                    <span>Здесь будет карта с соединениями (пример визуализации)</span>
+                </div>
+            </div>
+            <div style="display: flex; gap: 30px;">
+                <div>
+                    <b>Группировка:</b>
+                    <select class="group-select">
+                        <option>По владельцу</option>
+                        <option>По IP</option>
+                    </select>
+                </div>
+                <div>
+                    <b>Список соединений:</b>
+                    <ul style="margin: 0; padding-left: 18px;">
+                        <li>OneDrive.exe (157.55.124.123)</li>
+                        <li>spartan.edge.exe (157.56.96.215)</li>
+                        <li>Microsoft.Web.Server.Http (5.62.251.151)</li>
+                        <!-- ... -->
+                    </ul>
+                </div>
+            </div>
+        </div>
+        <!-- Мониторинг полосы пропускания -->
+        <div class="tab-panel">
+            <h2>Мониторинг полосы пропускания</h2>
+            <div class="bandwidth-chart-container">
+                <canvas id="bandwidthChart" width="600" height="250"></canvas>
+            </div>
+            <table class="connections-table">
+                <thead>
+                    <tr>
+                        <th>Процесс</th>
+                        <th>Подключения</th>
+                        <th>Входящий трафик</th>
+                        <th>Исходящий трафик</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr><td>OneDrive.exe</td><td>3</td><td>4.3Мбит/с</td><td>3.8Мбит/с</td></tr>
+                    <tr><td>explorer.exe</td><td>1</td><td>1.2Кбит/с</td><td>0.8Кбит/с</td></tr>
+                    <tr><td>spartan_edge.exe</td><td>2</td><td>1.1Мбит/с</td><td>0.6Мбит/с</td></tr>
+                    <!-- ... -->
+                </tbody>
+            </table>
+        </div>
+        <!-- Информация об адаптерах -->
+        <div class="tab-panel">
+            <h2>Информация об адаптерах</h2>
+            <div class="adapter-info">
+                <div class="adapter-title" onclick="toggleAdapter(this)">
+                    Wi-Fi: Intel(R) Centrino(R) Advanced-N 6230
+                    <span class="adapter-arrow">&#9654;</span>
+                </div>
+                <div class="adapter-details">
+                    <div class="adapter-row"><span class="adapter-label">MAC адрес:</span> <span class="adapter-value">XX:XX:XX:XX:XX:XX</span></div>
+                    <div class="adapter-row"><span class="adapter-label">IP адрес:</span> <span class="adapter-value">192.168.1.2</span></div>
+                    <div class="adapter-row"><span class="adapter-label">Скорость:</span> <span class="adapter-value">300 Мбит/с</span></div>
+                    <div class="adapter-row"><span class="adapter-label">DHCP lease:</span> <span class="adapter-value">6/24/2015 2:45:17 AM</span></div>
+                    <div class="adapter-row"><span class="adapter-label">Входящие пакеты:</span> <span class="adapter-value">4662</span></div>
+                    <div class="adapter-row"><span class="adapter-label">Исходящие пакеты:</span> <span class="adapter-value">3603</span></div>
+                    <div class="adapter-row"><span class="adapter-label">Ошибки входящие:</span> <span class="adapter-value">0</span></div>
+                    <div class="adapter-row"><span class="adapter-label">Ошибки исходящие:</span> <span class="adapter-value">0</span></div>
+                    <!-- ... -->
+                </div>
+            </div>
+            <div class="adapter-info">
+                <div class="adapter-title" onclick="toggleAdapter(this)">
+                    Ethernet: Realtek PCIe GBE Family Controller
+                    <span class="adapter-arrow">&#9654;</span>
+                </div>
+                <div class="adapter-details">
+                    <div class="adapter-row"><span class="adapter-label">MAC адрес:</span> <span class="adapter-value">YY:YY:YY:YY:YY:YY</span></div>
+                    <div class="adapter-row"><span class="adapter-label">IP адрес:</span> <span class="adapter-value">192.168.1.3</span></div>
+                    <div class="adapter-row"><span class="adapter-label">Скорость:</span> <span class="adapter-value">1 Гбит/с</span></div>
+                    <div class="adapter-row"><span class="adapter-label">DHCP lease:</span> <span class="adapter-value">6/24/2015 2:45:17 AM</span></div>
+                    <div class="adapter-row"><span class="adapter-label">Входящие пакеты:</span> <span class="adapter-value">1234</span></div>
+                    <div class="adapter-row"><span class="adapter-label">Исходящие пакеты:</span> <span class="adapter-value">5678</span></div>
+                    <div class="adapter-row"><span class="adapter-label">Ошибки входящие:</span> <span class="adapter-value">2</span></div>
+                    <div class="adapter-row"><span class="adapter-label">Ошибки исходящие:</span> <span class="adapter-value">1</span></div>
+                    <!-- ... -->
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    function showTab(idx) {
+        const tabs = document.querySelectorAll('.tab-item');
+        const panels = document.querySelectorAll('.tab-panel');
+        tabs.forEach((tab, i) => {
+            if (i === idx) {
+                tab.classList.add('active');
+                panels[i].classList.add('active');
+            } else {
+                tab.classList.remove('active');
+                panels[i].classList.remove('active');
+            }
+        });
+    }
+    // Пример графика для мониторинга полосы пропускания
+    window.onload = function() {
+        const ctx = document.getElementById('bandwidthChart');
+        if (ctx) {
+            new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: ['14:17:00', '14:17:10', '14:17:20', '14:17:30', '14:17:40', '14:17:50'],
+                    datasets: [{
+                        label: 'OneDrive.exe',
+                        data: [0, 0, 2, 3, 3, 3],
+                        borderColor: '#4a7dff',
+                        backgroundColor: 'rgba(74,125,255,0.1)',
+                        fill: true,
+                        tension: 0.3
+                    }, {
+                        label: 'explorer.exe',
+                        data: [0, 0, 0, 1, 1, 1],
+                        borderColor: '#38a169',
+                        backgroundColor: 'rgba(56,161,105,0.1)',
+                        fill: true,
+                        tension: 0.3
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: { position: 'top' },
+                        title: { display: false }
+                    },
+                    scales: {
+                        y: { beginAtZero: true, title: { display: true, text: 'Мбит/с' } },
+                        x: { title: { display: true, text: 'Время' } }
+                    },
+                    animation: false
+                }
+            });
+        }
+    };
+
+    // Сворачивание/разворачивание адаптеров
+    function toggleAdapter(titleElem) {
+        const infoBlock = titleElem.parentElement;
+        infoBlock.classList.toggle('open');
+    }
+    // По умолчанию все адаптеры свернуты
+    window.addEventListener('DOMContentLoaded', function() {
+        document.querySelectorAll('.adapter-info').forEach(function(block) {
+            block.classList.remove('open');
+        });
+    });
+</script>
+</body>
+</html>
