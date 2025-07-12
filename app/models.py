@@ -1,6 +1,8 @@
 from collections import defaultdict
 import time
 from enum import Enum
+from typing import List, Optional
+from dataclasses import dataclass, field
 
 # Конфигурация безопасности
 MAX_LOGIN_ATTEMPTS = 3
@@ -24,6 +26,25 @@ users = {
 
 # Счетчик ID для новых пользователей
 next_user_id = 4
+
+@dataclass
+class FirewallRule:
+    id: int
+    name: str
+    protocol: str  # any, tcp, udp, icmp, etc.
+    port: Optional[str]  # может быть диапазон или None
+    direction: str  # inbound, outbound, any
+    action: str  # allow, deny
+    enabled: bool
+    comment: Optional[str] = ""
+
+# Временное хранилище правил (в будущем будет БД)
+firewall_rules: List[FirewallRule] = [
+    FirewallRule(id=1, name="DHCP", protocol="udp", port="67-68", direction="any", action="allow", enabled=True, comment="DHCP service"),
+    FirewallRule(id=2, name="DNS", protocol="udp", port="53", direction="outbound", action="allow", enabled=False, comment="DNS queries")
+]
+
+next_rule_id = 3
 
 def get_role_name(role: UserRole) -> str:
     """Возвращает читаемое название роли"""
