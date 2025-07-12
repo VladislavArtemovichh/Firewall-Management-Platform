@@ -473,7 +473,15 @@ def setup_routes(app: FastAPI):
         user_role = users[username]["role"].value
         return templates.TemplateResponse("rules.html", {"request": request, "user_role": user_role})
 
+    @app.get("/firewalls")
+    def get_firewalls(request: Request):
+        username = request.cookies.get("username")
+        if not username or username not in users:
+            return RedirectResponse(url="/", status_code=303)
+        user_role = users[username]["role"].value
+        return templates.TemplateResponse("firewalls.html", {"request": request, "user_role": user_role})
+
     @app.exception_handler(429)
     async def too_many_requests_handler(request: Request, exc: HTTPException):
         """Обработчик ошибки 429 (Too Many Requests)"""
-        return RedirectResponse(url="/", status_code=303) 
+        return RedirectResponse(url="/", status_code=303)
