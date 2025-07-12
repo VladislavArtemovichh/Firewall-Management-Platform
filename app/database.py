@@ -32,7 +32,8 @@ async def create_users_table():
         CREATE TABLE IF NOT EXISTS users (
             id SERIAL PRIMARY KEY,
             username VARCHAR(50) UNIQUE NOT NULL,
-            password VARCHAR(128) NOT NULL
+            password VARCHAR(128) NOT NULL,
+            role VARCHAR(50) NOT NULL DEFAULT 'user'
         );
     ''')
     await conn.close()
@@ -90,9 +91,20 @@ async def startup_event():
             CREATE TABLE users (
                 id SERIAL PRIMARY KEY,
                 username VARCHAR(50) UNIQUE NOT NULL,
-                password VARCHAR(128) NOT NULL
+                password VARCHAR(128) NOT NULL,
+                role VARCHAR(50) NOT NULL DEFAULT 'user'
             );
         ''')
+    else:
+        # Проверяем, есть ли поле role в таблице
+        role_column_exists = await conn.fetchval("""
+            SELECT EXISTS (
+                SELECT FROM information_schema.columns 
+                WHERE table_name = 'users' AND column_name = 'role'
+            );
+        """)
+        if not role_column_exists:
+            await conn.execute('ALTER TABLE users ADD COLUMN role VARCHAR(50) NOT NULL DEFAULT \'user\';')
     
     # Проверяем и создаём таблицу сессий
     sessions_table_exists = await conn.fetchval("""
@@ -128,7 +140,7 @@ async def startup_event():
     await sync_users_to_database()
     
     # Очищаем аномальные сессии
-    await cleanup_anomalous_sessions() 
+    await cleanup_anomalous_sessions()
 
 # Функции для работы с сессиями пользователей
 async def create_user_session(user_id: int, session_token: str, ip_address: str = None, user_agent: str = None):
@@ -298,10 +310,16 @@ async def sync_users_to_database():
         for username, user_data in users.items():
             if username not in existing_usernames:
                 await conn.execute('''
-                    INSERT INTO users (username, password)
-                    VALUES ($1, $2)
-                ''', username, user_data['password'])
-                print(f"Добавлен пользователь: {username}")
+                    INSERT INTO users (username, password, role)
+                    VALUES ($1, $2, $3)
+                ''', username, user_data['password'], user_data['role'].value)
+                print(f"Добавлен пользователь: {username} с ролью: {user_data['role'].value}")
+            else:
+                # Обновляем роль существующего пользователя
+                await conn.execute('''
+                    UPDATE users SET role = $1 WHERE username = $2
+                ''', user_data['role'].value, username)
+                print(f"Обновлена роль пользователя: {username} -> {user_data['role'].value}")
     finally:
         await conn.close()
 

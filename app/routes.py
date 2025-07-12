@@ -179,17 +179,43 @@ def setup_routes(app: FastAPI):
         })
 
     @app.get("/api/users")
-    def get_users():
+    async def get_users():
         """API для получения списка пользователей"""
-        user_list = []
-        for i, (username, user_data) in enumerate(users.items(), 1):
-            user_list.append({
-                "id": i,
-                "login": username,
-                "password": user_data["password"],
-                "role": user_data["role"]
-            })
-        return JSONResponse(content=user_list)
+        try:
+            conn = await asyncpg.connect(
+                user=DB_USER,
+                password=DB_PASSWORD,
+                database=DB_NAME,
+                host=DB_HOST,
+                port=DB_PORT
+            )
+            
+            db_users = await conn.fetch('SELECT id, username, password, role FROM users ORDER BY id')
+            await conn.close()
+            
+            user_list = []
+            for db_user in db_users:
+                user_list.append({
+                    "id": db_user['id'],
+                    "login": db_user['username'],
+                    "password": db_user['password'],
+                    "role": db_user['role']
+                })
+            
+            return JSONResponse(content=user_list)
+            
+        except Exception as e:
+            print(f"Ошибка при получении пользователей из БД: {e}")
+            # Fallback к данным из памяти
+            user_list = []
+            for i, (username, user_data) in enumerate(users.items(), 1):
+                user_list.append({
+                    "id": i,
+                    "login": username,
+                    "password": user_data["password"],
+                    "role": user_data["role"].value
+                })
+            return JSONResponse(content=user_list)
 
     @app.post("/api/users")
     async def add_user(request: Request):
@@ -209,16 +235,33 @@ def setup_routes(app: FastAPI):
         if role not in [r.value for r in UserRole]:
             return JSONResponse(content={"error": "Некорректная роль"}, status_code=400)
         
-        if login in users:
-            return JSONResponse(content={"error": "Пользователь с таким логином уже существует"}, status_code=400)
-        
-        # Добавляем пользователя
-        users[login] = {
-            "password": password,
-            "role": UserRole(role)
-        }
-        
-        return JSONResponse(content={"success": True})
+        try:
+            conn = await asyncpg.connect(
+                user=DB_USER,
+                password=DB_PASSWORD,
+                database=DB_NAME,
+                host=DB_HOST,
+                port=DB_PORT
+            )
+            
+            # Проверяем, существует ли пользователь
+            existing_user = await conn.fetchval('SELECT id FROM users WHERE username = $1', login)
+            if existing_user:
+                await conn.close()
+                return JSONResponse(content={"error": "Пользователь с таким логином уже существует"}, status_code=400)
+            
+            # Добавляем пользователя в базу данных
+            await conn.execute('''
+                INSERT INTO users (username, password, role)
+                VALUES ($1, $2, $3)
+            ''', login, password, role)
+            
+            await conn.close()
+            return JSONResponse(content={"success": True})
+            
+        except Exception as e:
+            print(f"Ошибка при добавлении пользователя: {e}")
+            return JSONResponse(content={"error": "Ошибка при добавлении пользователя"}, status_code=500)
 
     @app.put("/api/users/{user_id}")
     async def update_user_role(user_id: int, request: Request):
@@ -229,27 +272,58 @@ def setup_routes(app: FastAPI):
         if role not in [r.value for r in UserRole]:
             return JSONResponse(content={"error": "Некорректная роль"}, status_code=400)
         
-        # Находим пользователя по ID
-        user_list = list(users.items())
-        if user_id <= 0 or user_id > len(user_list):
-            return JSONResponse(content={"error": "Пользователь не найден"}, status_code=404)
-        
-        username = user_list[user_id - 1][0]
-        users[username]["role"] = UserRole(role)
-        
-        return JSONResponse(content={"success": True})
+        try:
+            conn = await asyncpg.connect(
+                user=DB_USER,
+                password=DB_PASSWORD,
+                database=DB_NAME,
+                host=DB_HOST,
+                port=DB_PORT
+            )
+            
+            # Обновляем роль пользователя в базе данных
+            result = await conn.execute('''
+                UPDATE users SET role = $1 WHERE id = $2
+            ''', role, user_id)
+            
+            await conn.close()
+            
+            if result == "UPDATE 0":
+                return JSONResponse(content={"error": "Пользователь не найден"}, status_code=404)
+            
+            return JSONResponse(content={"success": True})
+            
+        except Exception as e:
+            print(f"Ошибка при обновлении роли пользователя: {e}")
+            return JSONResponse(content={"error": "Ошибка при обновлении роли"}, status_code=500)
 
     @app.delete("/api/users/{user_id}")
-    def delete_user(user_id: int):
+    async def delete_user(user_id: int):
         """API для удаления пользователя"""
-        user_list = list(users.items())
-        if user_id <= 0 or user_id > len(user_list):
-            return JSONResponse(content={"error": "Пользователь не найден"}, status_code=404)
-        
-        username = user_list[user_id - 1][0]
-        del users[username]
-        
-        return JSONResponse(content={"success": True})
+        try:
+            conn = await asyncpg.connect(
+                user=DB_USER,
+                password=DB_PASSWORD,
+                database=DB_NAME,
+                host=DB_HOST,
+                port=DB_PORT
+            )
+            
+            # Удаляем пользователя из базы данных
+            result = await conn.execute('''
+                DELETE FROM users WHERE id = $1
+            ''', user_id)
+            
+            await conn.close()
+            
+            if result == "DELETE 0":
+                return JSONResponse(content={"error": "Пользователь не найден"}, status_code=404)
+            
+            return JSONResponse(content={"success": True})
+            
+        except Exception as e:
+            print(f"Ошибка при удалении пользователя: {e}")
+            return JSONResponse(content={"error": "Ошибка при удалении пользователя"}, status_code=500)
 
     @app.get("/api/online-users")
     async def get_online_users_api():
