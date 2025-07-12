@@ -11,7 +11,7 @@ from .security import (
     encode_error_message,
     decode_error_message
 )
-from .models import users, UserRole, get_role_name, next_user_id
+from .models import users, UserRole, get_role_name, next_user_id, firewall_rules, FirewallRule, next_rule_id
 from .database import (
     get_online_users, 
     get_user_sessions, 
@@ -405,6 +405,73 @@ def setup_routes(app: FastAPI):
             })
         except Exception as e:
             return JSONResponse(content={"error": str(e)}, status_code=500)
+
+    # --- API для управления правилами ---
+    from fastapi import Body
+
+    @app.get("/api/rules")
+    async def get_rules():
+        """Получить все правила"""
+        return [rule.__dict__ for rule in firewall_rules]
+
+    @app.post("/api/rules")
+    async def add_rule(request: Request):
+        """Добавить новое правило"""
+        form = await request.form()
+        global next_rule_id
+        rule = FirewallRule(
+            id=next_rule_id,
+            name=str(form.get("name", "")),
+            protocol=str(form.get("protocol", "any")),
+            port=str(form.get("port", "")) if form.get("port") is not None else None,
+            direction=str(form.get("direction", "any")),
+            action=str(form.get("action", "allow")),
+            enabled=str(form.get("enabled", "true")).lower() == "true",
+            comment=str(form.get("comment", ""))
+        )
+        firewall_rules.append(rule)
+        next_rule_id += 1
+        return {"success": True, "rule": rule.__dict__}
+
+    @app.put("/api/rules/{rule_id}")
+    async def update_rule(rule_id: int, request: Request):
+        """Редактировать правило"""
+        form = await request.form()
+        for rule in firewall_rules:
+            if rule.id == rule_id:
+                rule.name = str(form.get("name", rule.name))
+                rule.protocol = str(form.get("protocol", rule.protocol))
+                rule.port = str(form.get("port", rule.port)) if form.get("port") is not None else rule.port
+                rule.direction = str(form.get("direction", rule.direction))
+                rule.action = str(form.get("action", rule.action))
+                rule.enabled = str(form.get("enabled", str(rule.enabled))).lower() == "true"
+                rule.comment = str(form.get("comment", rule.comment))
+                return {"success": True, "rule": rule.__dict__}
+        return {"error": "Rule not found"}
+
+    @app.delete("/api/rules/{rule_id}")
+    async def delete_rule(rule_id: int):
+        """Удалить правило"""
+        global firewall_rules
+        firewall_rules = [r for r in firewall_rules if r.id != rule_id]
+        return {"success": True}
+
+    @app.post("/api/rules/{rule_id}/toggle")
+    async def toggle_rule(rule_id: int):
+        """Включить/выключить правило"""
+        for rule in firewall_rules:
+            if rule.id == rule_id:
+                rule.enabled = not rule.enabled
+                return {"success": True, "enabled": rule.enabled}
+        return {"error": "Rule not found"}
+
+    @app.get("/rules")
+    def get_rules_page(request: Request):
+        username = request.cookies.get("username")
+        if not username or username not in users:
+            return RedirectResponse(url="/", status_code=303)
+        user_role = users[username]["role"].value
+        return templates.TemplateResponse("rules.html", {"request": request, "user_role": user_role})
 
     @app.exception_handler(429)
     async def too_many_requests_handler(request: Request, exc: HTTPException):
