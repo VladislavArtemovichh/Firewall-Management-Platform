@@ -1,8 +1,10 @@
 from fastapi import FastAPI
+from fastapi import Response
 import db_config
 from app.database import startup_event
 from app.middleware import setup_middleware
 from app.routes import setup_routes
+from app.connections_api import router as connections_router
 
 # Создаём приложение
 app = FastAPI()
@@ -12,6 +14,14 @@ setup_middleware(app)
 
 # Настраиваем маршруты
 setup_routes(app)
+
+# Подключаем router для connections
+app.include_router(connections_router)
+
+# Заглушка для favicon.ico, чтобы не было 404
+@app.get("/favicon.ico")
+async def favicon():
+    return Response(content=b"", media_type="image/x-icon")
 
 # Инициализируем базу данных при запуске
 @app.on_event("startup")

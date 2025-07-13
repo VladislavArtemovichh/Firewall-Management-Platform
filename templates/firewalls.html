@@ -267,11 +267,8 @@
                         <th>Время создания</th>
                     </tr>
                 </thead>
-                <tbody>
-                    <tr><td>Microsoft.Web.Server.Http</td><td>TCP</td><td>127.0.0.1</td><td>51548</td><td>5.62.251.151</td><td>443</td><td>ESTABLISHED</td><td>6/23/2015 21:15</td></tr>
-                    <tr><td>OneDrive.exe</td><td>TCP</td><td>192.168.1.2</td><td>60160</td><td>157.55.124.123</td><td>443</td><td>ESTABLISHED</td><td>6/23/2015 21:15</td></tr>
-                    <tr><td>SearchUI.exe</td><td>TCP</td><td>192.168.1.2</td><td>60161</td><td>204.79.197.200</td><td>80</td><td>CLOSE_WAIT</td><td>6/23/2015 21:15</td></tr>
-                    <!-- ... другие строки ... -->
+                <tbody id="connections-table-body">
+                    <tr><td colspan="8" style="text-align:center;">Загрузка...</td></tr>
                 </tbody>
             </table>
         </div>
@@ -381,8 +378,39 @@
             }
         });
     }
-    // Пример графика для мониторинга полосы пропускания
-    window.onload = function() {
+
+    // Динамическая загрузка подключений
+    async function loadConnections() {
+        const tbody = document.getElementById('connections-table-body');
+        tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;">Загрузка...</td></tr>';
+        try {
+            const resp = await fetch('/api/connections');
+            const data = await resp.json();
+            if (!Array.isArray(data) || data.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;">Нет активных подключений</td></tr>';
+                return;
+            }
+            tbody.innerHTML = '';
+            for (const conn of data) {
+                tbody.innerHTML += `<tr>
+                    <td>${conn.process || ''}</td>
+                    <td>${conn.protocol || ''}</td>
+                    <td>${conn.local_address || ''}</td>
+                    <td>${conn.local_port || ''}</td>
+                    <td>${conn.remote_address || ''}</td>
+                    <td>${conn.remote_port || ''}</td>
+                    <td>${conn.status || ''}</td>
+                    <td>${conn.create_time || ''}</td>
+                </tr>`;
+            }
+        } catch (e) {
+            tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;">Ошибка загрузки</td></tr>';
+        }
+    }
+    window.addEventListener('DOMContentLoaded', function() {
+        loadConnections();
+        setInterval(loadConnections, 300000); // автообновление каждые 5 минут
+        // Пример графика для мониторинга полосы пропускания
         const ctx = document.getElementById('bandwidthChart');
         if (ctx) {
             new Chart(ctx, {
@@ -419,19 +447,17 @@
                 }
             });
         }
-    };
+        // По умолчанию все адаптеры свернуты
+        document.querySelectorAll('.adapter-info').forEach(function(block) {
+            block.classList.remove('open');
+        });
+    });
 
     // Сворачивание/разворачивание адаптеров
     function toggleAdapter(titleElem) {
         const infoBlock = titleElem.parentElement;
         infoBlock.classList.toggle('open');
     }
-    // По умолчанию все адаптеры свернуты
-    window.addEventListener('DOMContentLoaded', function() {
-        document.querySelectorAll('.adapter-info').forEach(function(block) {
-            block.classList.remove('open');
-        });
-    });
 </script>
 </body>
 </html>
