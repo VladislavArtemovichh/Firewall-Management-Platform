@@ -283,9 +283,8 @@
     <div class="sidebar">
         <div class="tab-list">
             <button class="tab-item active" onclick="showTab(0)"><i class="fas fa-list"></i> Список подключений</button>
-            <button class="tab-item" onclick="showTab(1)"><i class="fas fa-map-marked-alt"></i> Отображение подключений</button>
-            <button class="tab-item" onclick="showTab(2)"><i class="fas fa-chart-line"></i> Мониторинг полосы пропускания</button>
-            <button class="tab-item" onclick="showTab(3)"><i class="fas fa-network-wired"></i> Информация об адаптерах</button>
+            <button class="tab-item" onclick="showTab(1)"><i class="fas fa-chart-line"></i> Мониторинг полосы пропускания</button>
+            <button class="tab-item" onclick="showTab(2)"><i class="fas fa-network-wired"></i> Информация об адаптерах</button>
         </div>
         <button class="back-btn" onclick="window.location.href='/dashboard'">
             <i class="fas fa-arrow-left"></i> Назад
@@ -330,34 +329,6 @@
                 <h3>Соединения устройства <span id="modal-device-name"></span></h3>
                 <div id="modal-connections-table"></div>
                 <button onclick="closeConnectionsModal()" style="margin-top:12px; padding: 6px 12px; background-color: #4a7dff; color: white; border: none; border-radius: 4px; cursor: pointer;">Закрыть</button>
-            </div>
-        </div>
-        <!-- Отображение подключений -->
-        <div class="tab-panel">
-            <h2>Отображение подключений</h2>
-            <div class="map-container">
-                <div class="map-placeholder">
-                    <i class="fas fa-globe-europe fa-3x"></i><br>
-                    <span>Здесь будет карта с соединениями (пример визуализации)</span>
-                </div>
-            </div>
-            <div style="display: flex; gap: 30px;">
-                <div>
-                    <b>Группировка:</b>
-                    <select class="group-select">
-                        <option>По владельцу</option>
-                        <option>По IP</option>
-                    </select>
-                </div>
-                <div>
-                    <b>Список соединений:</b>
-                    <ul style="margin: 0; padding-left: 18px;">
-                        <li>OneDrive.exe (157.55.124.123)</li>
-                        <li>spartan.edge.exe (157.56.96.215)</li>
-                        <li>Microsoft.Web.Server.Http (5.62.251.151)</li>
-                        <!-- ... -->
-                    </ul>
-                </div>
             </div>
         </div>
         <!-- Мониторинг полосы пропускания -->
