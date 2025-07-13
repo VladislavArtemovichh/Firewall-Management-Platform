@@ -362,14 +362,14 @@
             tbody.innerHTML = '';
             for (const conn of data) {
                 tbody.innerHTML += `<tr>
-                    <td>${conn.process || ''}</td>
-                    <td>${conn.protocol || ''}</td>
-                    <td>${conn.local_address || ''}</td>
-                    <td>${conn.local_port || ''}</td>
-                    <td>${conn.remote_address || ''}</td>
-                    <td>${conn.remote_port || ''}</td>
-                    <td>${conn.status || ''}</td>
-                    <td>${conn.create_time || ''}</td>
+                    <td>${conn.process || '-'}</td>
+                    <td>${conn.protocol || '-'}</td>
+                    <td>${conn.local_address || '-'}</td>
+                    <td>${conn.local_port || '-'}</td>
+                    <td>${conn.remote_address || '-'}</td>
+                    <td>${conn.remote_port || '-'}</td>
+                    <td>${conn.status || '-'}</td>
+                    <td>${conn.create_time || '-'}</td>
                 </tr>`;
             }
         } catch (e) {
