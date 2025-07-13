@@ -3,6 +3,7 @@ from fastapi.responses import JSONResponse
 import psutil
 import datetime
 import socket
+import uuid
 
 router = APIRouter()
 
@@ -44,4 +45,39 @@ async def get_connections():
             "status": conn.status,
             "create_time": create_time  # Время запуска процесса
         })
-    return JSONResponse(connections) 
+    return JSONResponse(connections)
+
+@router.get("/api/adapters")
+async def get_adapters():
+    import psutil
+    adapters_active = []
+    adapters_inactive = []
+    net_if_addrs = psutil.net_if_addrs()
+    net_if_stats = psutil.net_if_stats()
+    net_io_counters = psutil.net_io_counters(pernic=True)
+    for name, addrs in net_if_addrs.items():
+        mac = ''
+        ip = ''
+        for addr in addrs:
+            if addr.family == psutil.AF_LINK or (hasattr(socket, 'AF_PACKET') and addr.family == socket.AF_PACKET):
+                mac = addr.address
+            elif addr.family == socket.AF_INET:
+                ip = addr.address
+        stats = net_if_stats.get(name)
+        io = net_io_counters.get(name)
+        adapter = {
+            'name': name,
+            'mac': mac,
+            'ip': ip,
+            'speed': stats.speed if stats else None,
+            'isup': stats.isup if stats else None,
+            'in_packets': io.packets_recv if io else None,
+            'out_packets': io.packets_sent if io else None,
+            'in_errors': io.errin if io else None,
+            'out_errors': io.errout if io else None
+        }
+        if stats and stats.isup:
+            adapters_active.append(adapter)
+        else:
+            adapters_inactive.append(adapter)
+    return {'active': adapters_active, 'inactive': adapters_inactive} 
