@@ -69,6 +69,78 @@ async def create_user_sessions_table():
     
     await conn.close()
 
+async def create_firewall_devices_table():
+    """Создаёт таблицу firewall-устройств, если не существует"""
+    conn = await asyncpg.connect(
+        user=DB_USER,
+        password=DB_PASSWORD,
+        database=DB_NAME,
+        host=DB_HOST,
+        port=DB_PORT
+    )
+    await conn.execute('''
+        CREATE TABLE IF NOT EXISTS firewall_devices (
+            id SERIAL PRIMARY KEY,
+            name VARCHAR(100) NOT NULL,
+            ip VARCHAR(50) NOT NULL,
+            type VARCHAR(50) NOT NULL,
+            username VARCHAR(100) NOT NULL,
+            password VARCHAR(255) NOT NULL,
+            status VARCHAR(50) DEFAULT 'Неизвестно',
+            last_poll VARCHAR(50) DEFAULT '-'
+        );
+    ''')
+    await conn.close()
+
+async def get_all_firewall_devices():
+    conn = await asyncpg.connect(
+        user=DB_USER,
+        password=DB_PASSWORD,
+        database=DB_NAME,
+        host=DB_HOST,
+        port=DB_PORT
+    )
+    rows = await conn.fetch('SELECT * FROM firewall_devices ORDER BY id')
+    await conn.close()
+    return [dict(row) for row in rows]
+
+async def add_firewall_device(device):
+    conn = await asyncpg.connect(
+        user=DB_USER,
+        password=DB_PASSWORD,
+        database=DB_NAME,
+        host=DB_HOST,
+        port=DB_PORT
+    )
+    await conn.execute('''
+        INSERT INTO firewall_devices (name, ip, type, username, password)
+        VALUES ($1, $2, $3, $4, $5)
+    ''', device.name, device.ip, device.type, device.username, device.password)
+    await conn.close()
+
+async def delete_firewall_device(device_id):
+    conn = await asyncpg.connect(
+        user=DB_USER,
+        password=DB_PASSWORD,
+        database=DB_NAME,
+        host=DB_HOST,
+        port=DB_PORT
+    )
+    await conn.execute('DELETE FROM firewall_devices WHERE id = $1', int(device_id))
+    await conn.close()
+
+async def get_firewall_device_by_id(device_id):
+    conn = await asyncpg.connect(
+        user=DB_USER,
+        password=DB_PASSWORD,
+        database=DB_NAME,
+        host=DB_HOST,
+        port=DB_PORT
+    )
+    row = await conn.fetchrow('SELECT * FROM firewall_devices WHERE id = $1', int(device_id))
+    await conn.close()
+    return dict(row) if row else None
+
 async def startup_event():
     """Событие запуска приложения - проверяет и создаёт таблицы"""
     conn = await asyncpg.connect(
@@ -133,6 +205,9 @@ async def startup_event():
         await conn.execute('CREATE INDEX IF NOT EXISTS idx_user_sessions_user_id ON user_sessions(user_id);')
         await conn.execute('CREATE INDEX IF NOT EXISTS idx_user_sessions_online ON user_sessions(is_online);')
         await conn.execute('CREATE INDEX IF NOT EXISTS idx_user_sessions_last_activity ON user_sessions(last_activity);')
+    
+    # Создаём таблицу firewall-устройств
+    await create_firewall_devices_table()
     
     await conn.close()
     

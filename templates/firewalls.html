@@ -195,6 +195,47 @@
             from { opacity: 0; transform: translateY(-10px); }
             to { opacity: 1; transform: translateY(0); }
         }
+        
+        /* Стили для модального окна */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 999;
+        }
+        
+        /* Стили для кнопок действий */
+        .action-button {
+            padding: 4px 8px;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 12px;
+            margin-right: 4px;
+            transition: background-color 0.2s;
+        }
+        
+        .action-button.primary {
+            background-color: #4a7dff;
+            color: white;
+        }
+        
+        .action-button.primary:hover {
+            background-color: #3a6de8;
+        }
+        
+        .action-button.danger {
+            background-color: #e53e3e;
+            color: white;
+        }
+        
+        .action-button.danger:hover {
+            background-color: #c53030;
+        }
+        
         .adapter-row {
             display: flex;
             gap: 30px;
@@ -251,26 +292,45 @@
         </button>
     </div>
     <div class="main-content">
-        <!-- Список подключений -->
+        <!-- Список управляемых firewall-устройств -->
         <div class="tab-panel active">
-            <h2>Список подключений</h2>
+            <h2>Список управляемых firewall-устройств</h2>
             <table class="connections-table">
                 <thead>
                     <tr>
-                        <th>Имя процесса</th>
-                        <th>Протокол</th>
-                        <th>Локальный адрес</th>
-                        <th>Локальный порт</th>
-                        <th>Удалённый адрес</th>
-                        <th>Удалённый порт</th>
+                        <th>Имя</th>
+                        <th>IP-адрес</th>
+                        <th>Тип</th>
                         <th>Статус</th>
-                        <th>Время создания</th>
+                        <th>Последний опрос</th>
+                        <th>Действия</th>
                     </tr>
                 </thead>
-                <tbody id="connections-table-body">
-                    <tr><td colspan="8" style="text-align:center;">Загрузка...</td></tr>
+                <tbody id="firewall-devices-table">
+                    <tr><td colspan="6" style="text-align:center;">Загрузка...</td></tr>
                 </tbody>
             </table>
+            <button onclick="showAddDeviceForm()" style="margin-top: 12px; padding: 8px 16px; background-color: #4a7dff; color: white; border: none; border-radius: 4px; cursor: pointer;">Добавить устройство</button>
+            <div id="add-device-form" style="display:none; margin-top: 16px; padding: 16px; background: #f7fafc; border-radius: 8px;">
+                <input type="text" id="new-device-name" placeholder="Имя устройства" style="margin-right:8px; padding: 6px 8px; border: 1px solid #ddd; border-radius: 4px;">
+                <input type="text" id="new-device-ip" placeholder="IP-адрес" style="margin-right:8px; padding: 6px 8px; border: 1px solid #ddd; border-radius: 4px;">
+                <select id="new-device-type" style="margin-right:8px; padding: 6px 8px; border: 1px solid #ddd; border-radius: 4px;">
+                    <option value="cisco_ios">Cisco IOS</option>
+                    <option value="cisco_asa">Cisco ASA</option>
+                    <option value="mikrotik_routeros">Mikrotik RouterOS</option>
+                    <option value="fortinet">Fortinet</option>
+                    <option value="palo_alto">Palo Alto</option>
+                </select>
+                <input type="text" id="new-device-username" placeholder="Логин" style="margin-right:8px; padding: 6px 8px; border: 1px solid #ddd; border-radius: 4px;">
+                <input type="password" id="new-device-password" placeholder="Пароль" style="margin-right:8px; padding: 6px 8px; border: 1px solid #ddd; border-radius: 4px;">
+                <button onclick="addDevice()" style="padding: 6px 12px; background-color: #38a169; color: white; border: none; border-radius: 4px; cursor: pointer;">Сохранить</button>
+                <button onclick="hideAddDeviceForm()" style="padding: 6px 12px; background-color: #e53e3e; color: white; border: none; border-radius: 4px; cursor: pointer; margin-left: 8px;">Отмена</button>
+            </div>
+            <div id="device-connections-modal" style="display:none; position:fixed; top:10%; left:50%; transform:translateX(-50%); background:#fff; border-radius:8px; box-shadow:0 2px 12px #0002; padding:24px; z-index:1000; max-width: 90%; max-height: 80%; overflow-y: auto;">
+                <h3>Соединения устройства <span id="modal-device-name"></span></h3>
+                <div id="modal-connections-table"></div>
+                <button onclick="closeConnectionsModal()" style="margin-top:12px; padding: 6px 12px; background-color: #4a7dff; color: white; border: none; border-radius: 4px; cursor: pointer;">Закрыть</button>
+            </div>
         </div>
         <!-- Отображение подключений -->
         <div class="tab-panel">
@@ -303,6 +363,18 @@
         <!-- Мониторинг полосы пропускания -->
         <div class="tab-panel">
             <h2>Мониторинг полосы пропускания</h2>
+            <div class="device-monitor-form" style="margin-bottom: 24px;">
+                <input type="text" id="device-ip" placeholder="IP устройства" style="margin-right:8px;">
+                <input type="text" id="device-username" placeholder="Логин" style="margin-right:8px;">
+                <input type="password" id="device-password" placeholder="Пароль" style="margin-right:8px;">
+                <select id="device-type" style="margin-right:8px;">
+                    <option value="cisco_ios">Cisco IOS</option>
+                    <option value="mikrotik_routeros">Mikrotik</option>
+                    <!-- другие типы -->
+                </select>
+                <button onclick="loadDeviceBandwidth()">Мониторить устройство</button>
+            </div>
+            <div id="device-bandwidth-result"></div>
             <div class="bandwidth-chart-container">
                 <canvas id="bandwidthChart" width="600" height="250"></canvas>
             </div>
@@ -347,38 +419,150 @@
         localStorage.setItem('firewall_selected_tab', idx);
     }
 
-    // Динамическая загрузка подключений
-    let connectionsFirstLoad = true;
-    async function loadConnections() {
-        const tbody = document.getElementById('connections-table-body');
-        if (connectionsFirstLoad) {
-            tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;">Загрузка...</td></tr>';
+    // Загрузка списка firewall-устройств
+    let devicesFirstLoad = true;
+    async function loadFirewallDevices() {
+        const tbody = document.getElementById('firewall-devices-table');
+        if (devicesFirstLoad) {
+            tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;">Загрузка...</td></tr>';
         }
         try {
-            const resp = await fetch('/api/connections');
+            const resp = await fetch('/api/firewall_devices');
             const data = await resp.json();
             if (!Array.isArray(data) || data.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;">Нет активных подключений</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;">Нет устройств</td></tr>';
                 return;
             }
             tbody.innerHTML = '';
-            for (const conn of data) {
+            for (const dev of data) {
+                const statusClass = dev.status === 'online' ? 'color: #38a169;' : 'color: #e53e3e;';
+                const statusText = dev.status === 'online' ? 'Онлайн' : 'Оффлайн';
                 tbody.innerHTML += `<tr>
-                    <td>${conn.process || '-'}</td>
+                    <td>${dev.name || '-'}</td>
+                    <td>${dev.ip || '-'}</td>
+                    <td>${dev.device_type || '-'}</td>
+                    <td style="${statusClass}">${statusText}</td>
+                    <td>${dev.last_poll || '-'}</td>
+                    <td>
+                        <button onclick="showDeviceConnections('${dev.id}', '${dev.name}')" class="action-button primary">Мониторинг</button>
+                        <button onclick="deleteDevice('${dev.id}')" class="action-button danger">Удалить</button>
+                    </td>
+                </tr>`;
+            }
+            devicesFirstLoad = false;
+        } catch (e) {
+            tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;">Ошибка загрузки</td></tr>';
+        }
+    }
+
+    // Показать форму добавления устройства
+    function showAddDeviceForm() {
+        document.getElementById('add-device-form').style.display = 'block';
+    }
+    
+    function hideAddDeviceForm() {
+        document.getElementById('add-device-form').style.display = 'none';
+        // Очищаем поля формы
+        document.getElementById('new-device-name').value = '';
+        document.getElementById('new-device-ip').value = '';
+        document.getElementById('new-device-type').value = 'cisco_ios';
+        document.getElementById('new-device-username').value = '';
+        document.getElementById('new-device-password').value = '';
+    }
+
+    // Добавить устройство
+    async function addDevice() {
+        const name = document.getElementById('new-device-name').value;
+        const ip = document.getElementById('new-device-ip').value;
+        const type = document.getElementById('new-device-type').value;
+        const username = document.getElementById('new-device-username').value;
+        const password = document.getElementById('new-device-password').value;
+        
+        if (!name || !ip || !username || !password) {
+            alert('Пожалуйста, заполните все обязательные поля');
+            return;
+        }
+        
+        try {
+            const resp = await fetch('/api/firewall_devices', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({name, ip, type, username, password})
+            });
+            
+            if (resp.ok) {
+                hideAddDeviceForm();
+                loadFirewallDevices();
+                alert('Устройство успешно добавлено');
+            } else {
+                const error = await resp.text();
+                alert('Ошибка при добавлении устройства: ' + error);
+            }
+        } catch (e) {
+            alert('Ошибка при добавлении устройства: ' + e.message);
+        }
+    }
+
+    // Удалить устройство
+    async function deleteDevice(id) {
+        if (!confirm('Удалить устройство?')) return;
+        try {
+            const resp = await fetch(`/api/firewall_devices/${id}`, {method: 'DELETE'});
+            if (resp.ok) {
+                loadFirewallDevices();
+                alert('Устройство удалено');
+            } else {
+                const error = await resp.text();
+                alert('Ошибка при удалении: ' + error);
+            }
+        } catch (e) {
+            alert('Ошибка при удалении: ' + e.message);
+        }
+    }
+
+    // Показать соединения устройства
+    async function showDeviceConnections(id, name) {
+        document.getElementById('modal-device-name').textContent = name;
+        document.getElementById('device-connections-modal').style.display = 'block';
+        const tableDiv = document.getElementById('modal-connections-table');
+        tableDiv.innerHTML = 'Загрузка...';
+        try {
+            const resp = await fetch(`/api/firewall_connections?device_id=${id}`);
+            const data = await resp.json();
+            if (!Array.isArray(data) || data.length === 0) {
+                tableDiv.innerHTML = '<p style="text-align:center; color:#888;">Нет соединений</p>';
+                return;
+            }
+            let html = '<table class="connections-table"><thead><tr><th>Интерфейс</th><th>Протокол</th><th>Локальный адрес</th><th>Локальный порт</th><th>Удалённый адрес</th><th>Удалённый порт</th><th>Статус</th></tr></thead><tbody>';
+            for (const conn of data) {
+                html += `<tr>
+                    <td>${conn.interface || '-'}</td>
                     <td>${conn.protocol || '-'}</td>
                     <td>${conn.local_address || '-'}</td>
                     <td>${conn.local_port || '-'}</td>
                     <td>${conn.remote_address || '-'}</td>
                     <td>${conn.remote_port || '-'}</td>
                     <td>${conn.status || '-'}</td>
-                    <td>${conn.create_time || '-'}</td>
                 </tr>`;
             }
-            connectionsFirstLoad = false;
+            html += '</tbody></table>';
+            tableDiv.innerHTML = html;
         } catch (e) {
-            tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;">Ошибка загрузки</td></tr>';
+            tableDiv.innerHTML = '<p style="text-align:center; color:#e53e3e;">Ошибка загрузки соединений: ' + e.message + '</p>';
         }
     }
+    
+    function closeConnectionsModal() {
+        document.getElementById('device-connections-modal').style.display = 'none';
+    }
+    
+    // Закрытие модального окна при клике вне его области
+    document.addEventListener('click', function(event) {
+        const modal = document.getElementById('device-connections-modal');
+        if (event.target === modal) {
+            closeConnectionsModal();
+        }
+    });
 
     // Динамическая загрузка информации об адаптерах
     async function loadAdapters() {
@@ -549,6 +733,35 @@
         }
     }
 
+    async function loadDeviceBandwidth() {
+        const ip = document.getElementById('device-ip').value;
+        const username = document.getElementById('device-username').value;
+        const password = document.getElementById('device-password').value;
+        const device_type = document.getElementById('device-type').value;
+        const resultDiv = document.getElementById('device-bandwidth-result');
+        resultDiv.innerHTML = 'Загрузка...';
+        try {
+            const resp = await fetch('/api/device_bandwidth', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ip, username, password, device_type})
+            });
+            const data = await resp.json();
+            if (data.interfaces && data.interfaces.length > 0) {
+                let html = '<table class="connections-table"><thead><tr><th>Интерфейс</th><th>Входящий трафик</th><th>Исходящий трафик</th></tr></thead><tbody>';
+                for (const iface of data.interfaces) {
+                    html += `<tr><td>${iface.name}</td><td>${iface.in_traffic}</td><td>${iface.out_traffic}</td></tr>`;
+                }
+                html += '</tbody></table>';
+                resultDiv.innerHTML = html;
+            } else {
+                resultDiv.innerHTML = 'Нет данных';
+            }
+        } catch (e) {
+            resultDiv.innerHTML = 'Ошибка: ' + e;
+        }
+    }
+
     window.addEventListener('DOMContentLoaded', function() {
         // Восстанавливаем вкладку из localStorage
         let idx = 0;
@@ -557,8 +770,8 @@
             idx = Number(saved);
         }
         showTab(idx);
-        loadConnections();
-        setInterval(loadConnections, 3000); // автообновление каждые 3 секунды
+        loadFirewallDevices();
+        setInterval(loadFirewallDevices, 30000); // автообновление каждые 30 секунд
         loadAdapters();
         loadBandwidth();
         setInterval(loadBandwidth, 3000); // автообновление каждые 3 секунды
@@ -573,6 +786,15 @@
         const infoBlock = titleElem.parentElement;
         infoBlock.classList.toggle('open');
     }
+    
+    // Закрытие модального окна при клике вне его области
+    document.addEventListener('click', function(event) {
+        const modal = document.getElementById('device-connections-modal');
+        if (event.target === modal) {
+            closeConnectionsModal();
+        }
+    });
 </script>
 </body>
 </html>
+

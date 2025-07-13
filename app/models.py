@@ -3,6 +3,7 @@ import time
 from enum import Enum
 from typing import List, Optional
 from dataclasses import dataclass, field
+from pydantic import BaseModel
 
 # Конфигурация безопасности
 MAX_LOGIN_ATTEMPTS = 3
@@ -45,6 +46,25 @@ firewall_rules: List[FirewallRule] = [
 ]
 
 next_rule_id = 3
+
+# Pydantic-модель для создания firewall-устройства (только нужные поля)
+class FirewallDeviceCreate(BaseModel):
+    name: str
+    ip: str
+    type: str
+    username: str
+    password: str
+
+# Pydantic-модель для вывода firewall-устройства
+class FirewallDeviceModel(BaseModel):
+    id: int
+    name: str
+    ip: str
+    type: str
+    username: str
+    password: str
+    status: Optional[str] = "Неизвестно"
+    last_poll: Optional[str] = "-"
 
 def get_role_name(role: UserRole) -> str:
     """Возвращает читаемое название роли"""
