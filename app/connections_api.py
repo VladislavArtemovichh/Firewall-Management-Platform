@@ -80,4 +80,45 @@ async def get_adapters():
             adapters_active.append(adapter)
         else:
             adapters_inactive.append(adapter)
-    return {'active': adapters_active, 'inactive': adapters_inactive} 
+    return {'active': adapters_active, 'inactive': adapters_inactive}
+
+@router.get("/api/bandwidth")
+async def get_bandwidth():
+    import psutil
+    import collections
+    proc_stats = collections.defaultdict(lambda: {"connections": 0, "bytes_recv": 0, "bytes_sent": 0})
+    for proc in psutil.process_iter(['pid', 'name']):
+        try:
+            name = proc.info['name'] or f"pid_{proc.info['pid']}"
+            # Считаем только процессы с сетевыми соединениями
+            conns = proc.connections(kind='inet')
+            if not conns:
+                continue
+            net_io = proc.io_counters() if hasattr(proc, 'io_counters') else None
+            # psutil не даёт трафик только по сети для процесса, но можно получить bytes_sent/recv для сокетов
+            # Альтернатива: использовать net_io_counters для интерфейсов, но не по процессам
+            # Поэтому считаем только количество соединений, а трафик — общий по процессу (может включать диск)
+            bytes_sent = 0
+            bytes_recv = 0
+            try:
+                for c in conns:
+                    if c.raddr:
+                        # Для TCP/UDP сокетов можно получить send/recv через psutil (ограниченно)
+                        pass
+                # psutil не даёт сетевой трафик по процессу напрямую
+            except Exception:
+                pass
+            proc_stats[name]["connections"] += len(conns)
+            # Оставляем bytes_sent/recv = 0, т.к. psutil не даёт сетевой трафик по процессу напрямую
+        except Exception:
+            continue
+    # Преобразуем в список для фронта
+    result = []
+    for name, stat in proc_stats.items():
+        result.append({
+            "process": name,
+            "connections": stat["connections"],
+            "in_traffic": stat["bytes_recv"],
+            "out_traffic": stat["bytes_sent"]
+        })
+    return result 

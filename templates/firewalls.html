@@ -315,11 +315,8 @@
                         <th>Исходящий трафик</th>
                     </tr>
                 </thead>
-                <tbody>
-                    <tr><td>OneDrive.exe</td><td>3</td><td>4.3Мбит/с</td><td>3.8Мбит/с</td></tr>
-                    <tr><td>explorer.exe</td><td>1</td><td>1.2Кбит/с</td><td>0.8Кбит/с</td></tr>
-                    <tr><td>spartan_edge.exe</td><td>2</td><td>1.1Мбит/с</td><td>0.6Мбит/с</td></tr>
-                    <!-- ... -->
+                <tbody id="bandwidth-table-body">
+                    <tr><td colspan="4" style="text-align:center;">Загрузка...</td></tr>
                 </tbody>
             </table>
         </div>
@@ -346,12 +343,17 @@
                 panels[i].classList.remove('active');
             }
         });
+        // Сохраняем выбранную вкладку
+        localStorage.setItem('firewall_selected_tab', idx);
     }
 
     // Динамическая загрузка подключений
+    let connectionsFirstLoad = true;
     async function loadConnections() {
         const tbody = document.getElementById('connections-table-body');
-        tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;">Загрузка...</td></tr>';
+        if (connectionsFirstLoad) {
+            tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;">Загрузка...</td></tr>';
+        }
         try {
             const resp = await fetch('/api/connections');
             const data = await resp.json();
@@ -372,6 +374,7 @@
                     <td>${conn.create_time || '-'}</td>
                 </tr>`;
             }
+            connectionsFirstLoad = false;
         } catch (e) {
             tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;">Ошибка загрузки</td></tr>';
         }
@@ -444,47 +447,121 @@
         }
     }
 
-    window.addEventListener('DOMContentLoaded', function() {
-        loadConnections();
-        setInterval(loadConnections, 300000); // автообновление каждые 5 минут
-        loadAdapters();
-        // Пример графика для мониторинга полосы пропускания
+    // Форматирование трафика (байты -> Кбит/с, Мбит/с)
+    function formatTraffic(bytes) {
+        if (bytes === 0) return '-';
+        const kbps = bytes * 8 / 1024;
+        if (kbps < 1024) return kbps.toFixed(1) + 'Кбит/с';
+        return (kbps / 1024).toFixed(1) + 'Мбит/с';
+    }
+    function formatMbit(bytes) {
+        if (bytes === 0) return '-';
+        return (bytes * 8 / 1024 / 1024).toFixed(2);
+    }
+
+    let bandwidthFirstLoad = true;
+    let bandwidthChartInstance = null;
+    // Динамическая загрузка мониторинга полосы пропускания
+    async function loadBandwidth() {
+        const tbody = document.getElementById('bandwidth-table-body');
         const ctx = document.getElementById('bandwidthChart');
-        if (ctx) {
-            new Chart(ctx, {
-                type: 'line',
-                data: {
-                    labels: ['14:17:00', '14:17:10', '14:17:20', '14:17:30', '14:17:40', '14:17:50'],
-                    datasets: [{
-                        label: 'OneDrive.exe',
-                        data: [0, 0, 2, 3, 3, 3],
-                        borderColor: '#4a7dff',
-                        backgroundColor: 'rgba(74,125,255,0.1)',
-                        fill: true,
-                        tension: 0.3
-                    }, {
-                        label: 'explorer.exe',
-                        data: [0, 0, 0, 1, 1, 1],
-                        borderColor: '#38a169',
-                        backgroundColor: 'rgba(56,161,105,0.1)',
-                        fill: true,
-                        tension: 0.3
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    plugins: {
-                        legend: { position: 'top' },
-                        title: { display: false }
-                    },
-                    scales: {
-                        y: { beginAtZero: true, title: { display: true, text: 'Мбит/с' } },
-                        x: { title: { display: true, text: 'Время' } }
-                    },
-                    animation: false
-                }
-            });
+        if (bandwidthFirstLoad) {
+            tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;">Загрузка...</td></tr>';
         }
+        try {
+            const resp = await fetch('/api/bandwidth');
+            const data = await resp.json();
+            if (!Array.isArray(data) || data.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;">Нет данных</td></tr>';
+                if (bandwidthChartInstance) {
+                    bandwidthChartInstance.destroy();
+                    bandwidthChartInstance = null;
+                }
+                return;
+            }
+            tbody.innerHTML = '';
+            let labels = [];
+            let inData = [];
+            let outData = [];
+            let processes = [];
+            for (const row of data) {
+                tbody.innerHTML += `<tr>
+                    <td>${row.process || '-'}</td>
+                    <td>${row.connections || '-'}</td>
+                    <td>${formatTraffic(row.in_traffic)}</td>
+                    <td>${formatTraffic(row.out_traffic)}</td>
+                </tr>`;
+                processes.push(row.process || '-');
+                inData.push(row.in_traffic || 0);
+                outData.push(row.out_traffic || 0);
+            }
+            // Строим или обновляем график (in/out traffic по процессам)
+            if (ctx) {
+                if (!bandwidthChartInstance) {
+                    bandwidthChartInstance = new Chart(ctx, {
+                        type: 'bar',
+                        data: {
+                            labels: processes,
+                            datasets: [
+                                {
+                                    label: 'Входящий трафик',
+                                    data: inData.map(formatTraffic),
+                                    backgroundColor: 'rgba(74,125,255,0.5)',
+                                    borderColor: '#4a7dff',
+                                    borderWidth: 1
+                                },
+                                {
+                                    label: 'Исходящий трафик',
+                                    data: outData.map(formatTraffic),
+                                    backgroundColor: 'rgba(56,161,105,0.5)',
+                                    borderColor: '#38a169',
+                                    borderWidth: 1
+                                }
+                            ]
+                        },
+                        options: {
+                            responsive: true,
+                            plugins: {
+                                legend: { position: 'top' },
+                                title: { display: false }
+                            },
+                            scales: {
+                                y: { beginAtZero: true, title: { display: true, text: 'Трафик' } },
+                                x: { title: { display: true, text: 'Процесс' } }
+                            },
+                            animation: false
+                        }
+                    });
+                } else {
+                    bandwidthChartInstance.data.labels = processes;
+                    bandwidthChartInstance.data.datasets[0].data = inData.map(formatTraffic);
+                    bandwidthChartInstance.data.datasets[1].data = outData.map(formatTraffic);
+                    bandwidthChartInstance.update();
+                }
+            }
+            bandwidthFirstLoad = false;
+        } catch (e) {
+            tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;">Ошибка загрузки</td></tr>';
+            if (bandwidthChartInstance) {
+                bandwidthChartInstance.destroy();
+                bandwidthChartInstance = null;
+            }
+        }
+    }
+
+    window.addEventListener('DOMContentLoaded', function() {
+        // Восстанавливаем вкладку из localStorage
+        let idx = 0;
+        const saved = localStorage.getItem('firewall_selected_tab');
+        if (saved !== null && !isNaN(Number(saved))) {
+            idx = Number(saved);
+        }
+        showTab(idx);
+        loadConnections();
+        setInterval(loadConnections, 3000); // автообновление каждые 3 секунды
+        loadAdapters();
+        loadBandwidth();
+        setInterval(loadBandwidth, 3000); // автообновление каждые 3 секунды
         // По умолчанию все адаптеры свернуты
         document.querySelectorAll('.adapter-info').forEach(function(block) {
             block.classList.remove('open');
