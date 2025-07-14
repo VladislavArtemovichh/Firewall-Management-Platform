@@ -599,69 +599,116 @@
     });
 
     // Динамическая загрузка информации об адаптерах
+    let adaptersFirstLoad = true;
     async function loadAdapters() {
         const container = document.getElementById('adapters-list');
-        container.innerHTML = '<div style="text-align:center; color:#888;">Загрузка...</div>';
+        // Сохраняем раскрытые адаптеры по MAC-адресу
+        const openedMacs = Array.from(container.querySelectorAll('.adapter-info.open[data-mac]')).map(e => e.getAttribute('data-mac'));
+        if (adaptersFirstLoad) {
+            container.innerHTML = '<div style="text-align:center; color:#888;">Загрузка...</div>';
+        }
         try {
             const resp = await fetch('/api/adapters');
             const data = await resp.json();
             if (!data || (!Array.isArray(data.active) && !Array.isArray(data.inactive))) {
                 container.innerHTML = '<div style="text-align:center; color:#888;">Нет данных об адаптерах</div>';
+                adaptersFirstLoad = false;
                 return;
             }
             let html = '';
-            if (data.active && data.active.length > 0) {
-                html += '<h3 style="color:#217346;">Подключённые адаптеры</h3>';
-                for (const adapter of data.active) {
-                    html += `
-                    <div class="adapter-info">
-                        <div class="adapter-title" onclick="toggleAdapter(this)">
-                            ${adapter.name}
-                            <span class="adapter-arrow">&#9654;</span>
-                        </div>
-                        <div class="adapter-details">
-                            <div class="adapter-row"><span class="adapter-label">MAC адрес:</span> <span class="adapter-value">${adapter.mac || '-'}</span></div>
-                            <div class="adapter-row"><span class="adapter-label">IP адрес:</span> <span class="adapter-value">${adapter.ip || '-'}</span></div>
-                            <div class="adapter-row"><span class="adapter-label">Скорость:</span> <span class="adapter-value">${adapter.speed ? adapter.speed + ' Мбит/с' : '-'}</span></div>
-                            <div class="adapter-row"><span class="adapter-label">Статус:</span> <span class="adapter-value">Включен</span></div>
-                            <div class="adapter-row"><span class="adapter-label">Входящие пакеты:</span> <span class="adapter-value">${adapter.in_packets ?? '-'}</span></div>
-                            <div class="adapter-row"><span class="adapter-label">Исходящие пакеты:</span> <span class="adapter-value">${adapter.out_packets ?? '-'}</span></div>
-                            <div class="adapter-row"><span class="adapter-label">Ошибки входящие:</span> <span class="adapter-value">${adapter.in_errors ?? '-'}</span></div>
-                            <div class="adapter-row"><span class="adapter-label">Ошибки исходящие:</span> <span class="adapter-value">${adapter.out_errors ?? '-'}</span></div>
-                        </div>
+            function isOpen(mac) {
+                return openedMacs.includes(mac);
+            }
+            function adapterBlock(adapter, status, smartStatus) {
+                return `
+                <div class="adapter-info${isOpen(adapter.mac) ? ' open' : ''}" data-mac="${adapter.mac}">
+                    <div class="adapter-title">
+                        ${adapter.name}
+                        <span class="adapter-arrow">&#9654;</span>
                     </div>
-                    `;
-                }
-            }
-            if (data.inactive && data.inactive.length > 0) {
-                html += '<h3 style="color:#b22222;">Неактивные адаптеры</h3>';
-                for (const adapter of data.inactive) {
-                    html += `
-                    <div class="adapter-info">
-                        <div class="adapter-title" onclick="toggleAdapter(this)">
-                            ${adapter.name}
-                            <span class="adapter-arrow">&#9654;</span>
-                        </div>
-                        <div class="adapter-details">
-                            <div class="adapter-row"><span class="adapter-label">MAC адрес:</span> <span class="adapter-value">${adapter.mac || '-'}</span></div>
-                            <div class="adapter-row"><span class="adapter-label">IP адрес:</span> <span class="adapter-value">${adapter.ip || '-'}</span></div>
-                            <div class="adapter-row"><span class="adapter-label">Скорость:</span> <span class="adapter-value">${adapter.speed ? adapter.speed + ' Мбит/с' : '-'}</span></div>
-                            <div class="adapter-row"><span class="adapter-label">Статус:</span> <span class="adapter-value">Выключен</span></div>
-                            <div class="adapter-row"><span class="adapter-label">Входящие пакеты:</span> <span class="adapter-value">${adapter.in_packets ?? '-'}</span></div>
-                            <div class="adapter-row"><span class="adapter-label">Исходящие пакеты:</span> <span class="adapter-value">${adapter.out_packets ?? '-'}</span></div>
-                            <div class="adapter-row"><span class="adapter-label">Ошибки входящие:</span> <span class="adapter-value">${adapter.in_errors ?? '-'}</span></div>
-                            <div class="adapter-row"><span class="adapter-label">Ошибки исходящие:</span> <span class="adapter-value">${adapter.out_errors ?? '-'}</span></div>
-                        </div>
+                    <div class="adapter-details">
+                        <div class="adapter-row"><span class="adapter-label">MAC адрес:</span> <span class="adapter-value">${adapter.mac || '-'}</span></div>
+                        <div class="adapter-row"><span class="adapter-label">IP адрес:</span> <span class="adapter-value">${adapter.ip || '-'}</span></div>
+                        <div class="adapter-row"><span class="adapter-label" title="Это максимальная физическая скорость интерфейса, а не текущая скорость передачи данных.">Скорость:</span> <span class="adapter-value">${adapter.speed ? adapter.speed + ' Мбит/с' : '-'}</span></div>
+                        <div class="adapter-row"><span class="adapter-label">Статус:</span> <span class="adapter-value">${smartStatus}</span></div>
+                        <div class="adapter-row"><span class="adapter-label">Входящие пакеты:</span> <span class="adapter-value">${adapter.in_packets ?? '-'}</span></div>
+                        <div class="adapter-row"><span class="adapter-label">Исходящие пакеты:</span> <span class="adapter-value">${adapter.out_packets ?? '-'}</span></div>
+                        <div class="adapter-row"><span class="adapter-label">Ошибки входящие:</span> <span class="adapter-value">${adapter.in_errors ?? '-'}</span></div>
+                        <div class="adapter-row"><span class="adapter-label">Ошибки исходящие:</span> <span class="adapter-value">${adapter.out_errors ?? '-'}</span></div>
+                        <div class="adapter-row"><span class="adapter-label">Текущая загрузка (вход):</span> <span class="adapter-value">${adapter.in_mbps !== undefined ? adapter.in_mbps + ' Мбит/с' : '-'}</span></div>
+                        <div class="adapter-row"><span class="adapter-label">Текущая загрузка (выход):</span> <span class="adapter-value">${adapter.out_mbps !== undefined ? adapter.out_mbps + ' Мбит/с' : '-'}</span></div>
                     </div>
-                    `;
+                </div>
+                `;
+            }
+            if (!adaptersFirstLoad && openedMacs.length > 0) {
+                // Только обновляем значения для раскрытых адаптеров
+                const allAdapters = [...(data.active || []), ...(data.inactive || [])];
+                openedMacs.forEach(mac => {
+                    const adapter = allAdapters.find(a => a.mac === mac);
+                    if (!adapter) return;
+                    const infoBlock = container.querySelector('.adapter-info.open[data-mac="' + mac + '"]');
+                    if (!infoBlock) return;
+                    const details = infoBlock.querySelector('.adapter-details');
+                    if (!details) return;
+                    details.querySelectorAll('.adapter-row').forEach(row => {
+                        const label = row.querySelector('.adapter-label').textContent.trim();
+                        const valueSpan = row.querySelector('.adapter-value');
+                        if (label === 'IP адрес:') valueSpan.textContent = adapter.ip || '-';
+                        if (label === 'Скорость:') valueSpan.textContent = adapter.speed ? adapter.speed + ' Мбит/с' : '-';
+                        if (label === 'Статус:') {
+                            let smartStatus = (adapter.isup ? 'Включен' : 'Выключен');
+                            if (!adapter.isup && ((adapter.in_mbps && adapter.in_mbps > 0.001) || (adapter.out_mbps && adapter.out_mbps > 0.001))) {
+                                smartStatus = 'Включен (по трафику)';
+                            }
+                            valueSpan.textContent = smartStatus;
+                        }
+                        if (label === 'Входящие пакеты:') valueSpan.textContent = adapter.in_packets ?? '-';
+                        if (label === 'Исходящие пакеты:') valueSpan.textContent = adapter.out_packets ?? '-';
+                        if (label === 'Ошибки входящие:') valueSpan.textContent = adapter.in_errors ?? '-';
+                        if (label === 'Ошибки исходящие:') valueSpan.textContent = adapter.out_errors ?? '-';
+                        if (label === 'Текущая загрузка (вход):') valueSpan.textContent = (adapter.in_mbps !== undefined ? adapter.in_mbps + ' Мбит/с' : '-');
+                        if (label === 'Текущая загрузка (выход):') valueSpan.textContent = (adapter.out_mbps !== undefined ? adapter.out_mbps + ' Мбит/с' : '-');
+                    });
+                });
+            } else {
+                if (data.active && data.active.length > 0) {
+                    html += '<h3 style="color:#217346;">Подключённые адаптеры</h3>';
+                    for (const adapter of data.active) {
+                        let smartStatus = 'Включен';
+                        if (!adapter.isup && ((adapter.in_mbps && adapter.in_mbps > 0.001) || (adapter.out_mbps && adapter.out_mbps > 0.001))) {
+                            smartStatus = 'Включен (по трафику)';
+                        }
+                        html += adapterBlock(adapter, 'Включен', smartStatus);
+                    }
                 }
+                if (data.inactive && data.inactive.length > 0) {
+                    html += '<h3 style="color:#b22222;">Неактивные адаптеры</h3>';
+                    for (const adapter of data.inactive) {
+                        let smartStatus = 'Выключен';
+                        if (!adapter.isup && ((adapter.in_mbps && adapter.in_mbps > 0.001) || (adapter.out_mbps && adapter.out_mbps > 0.001))) {
+                            smartStatus = 'Включен (по трафику)';
+                        }
+                        html += adapterBlock(adapter, 'Выключен', smartStatus);
+                    }
+                }
+                if (!html) {
+                    container.innerHTML = '<div style="text-align:center; color:#888;">Нет данных об адаптерах</div>';
+                } else {
+                    container.innerHTML = html;
+                }
+                // Навешиваем обработчики на все .adapter-title
+                container.querySelectorAll('.adapter-title').forEach(function(titleElem) {
+                    titleElem.onclick = function() {
+                        const infoBlock = this.parentElement;
+                        infoBlock.classList.toggle('open');
+                    };
+                });
             }
-            if (!html) {
-                html = '<div style="text-align:center; color:#888;">Нет данных об адаптерах</div>';
-            }
-            container.innerHTML = html;
+            adaptersFirstLoad = false;
         } catch (e) {
             container.innerHTML = '<div style="text-align:center; color:#888;">Ошибка загрузки</div>';
+            adaptersFirstLoad = false;
         }
     }
 
@@ -868,6 +915,7 @@
         loadFirewallDevices();
         setInterval(loadFirewallDevices, 30000); // автообновление каждые 30 секунд
         loadAdapters();
+        setInterval(loadAdapters, 3000); // автообновление адаптеров каждые 3 секунды
         loadBandwidth();
         setInterval(loadBandwidth, 3000); // автообновление каждые 3 секунды
         // По умолчанию все адаптеры свернуты
