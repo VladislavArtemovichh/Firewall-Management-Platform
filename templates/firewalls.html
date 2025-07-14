@@ -283,15 +283,17 @@
     <div class="sidebar">
         <div class="tab-list">
             <button class="tab-item active" onclick="showTab(0)"><i class="fas fa-list"></i> Список подключений</button>
-            <button class="tab-item" onclick="showTab(1)"><i class="fas fa-map-marked-alt"></i> Отображение подключений</button>
-            <button class="tab-item" onclick="showTab(2)"><i class="fas fa-chart-line"></i> Мониторинг полосы пропускания</button>
-            <button class="tab-item" onclick="showTab(3)"><i class="fas fa-network-wired"></i> Информация об адаптерах</button>
+            <button class="tab-item" onclick="showTab(1)"><i class="fas fa-cogs"></i> Централизованное управление</button>
+            <button class="tab-item" onclick="showTab(2)"><i class="fas fa-terminal"></i> Интерфейс команд</button>
+            <button class="tab-item" onclick="showTab(3)"><i class="fas fa-chart-line"></i> Мониторинг полосы пропускания</button>
+            <button class="tab-item" onclick="showTab(4)"><i class="fas fa-network-wired"></i> Информация об адаптерах</button>
         </div>
         <button class="back-btn" onclick="window.location.href='/dashboard'">
             <i class="fas fa-arrow-left"></i> Назад
         </button>
     </div>
     <div class="main-content">
+        {% set is_readonly = user_role == 'user' %}
         <!-- Список управляемых firewall-устройств -->
         <div class="tab-panel active">
             <h2>Список управляемых firewall-устройств</h2>
@@ -310,21 +312,25 @@
                     <tr><td colspan="6" style="text-align:center;">Загрузка...</td></tr>
                 </tbody>
             </table>
+            {% if not is_readonly %}
             <button onclick="showAddDeviceForm()" style="margin-top: 12px; padding: 8px 16px; background-color: #4a7dff; color: white; border: none; border-radius: 4px; cursor: pointer;">Добавить устройство</button>
+            {% endif %}
             <div id="add-device-form" style="display:none; margin-top: 16px; padding: 16px; background: #f7fafc; border-radius: 8px;">
-                <input type="text" id="new-device-name" placeholder="Имя устройства" style="margin-right:8px; padding: 6px 8px; border: 1px solid #ddd; border-radius: 4px;">
-                <input type="text" id="new-device-ip" placeholder="IP-адрес" style="margin-right:8px; padding: 6px 8px; border: 1px solid #ddd; border-radius: 4px;">
-                <select id="new-device-type" style="margin-right:8px; padding: 6px 8px; border: 1px solid #ddd; border-radius: 4px;">
+                <input type="text" id="new-device-name" placeholder="Имя устройства" style="margin-right:8px; padding: 6px 8px; border: 1px solid #ddd; border-radius: 4px;" {% if is_readonly %}disabled{% endif %}>
+                <input type="text" id="new-device-ip" placeholder="IP-адрес" style="margin-right:8px; padding: 6px 8px; border: 1px solid #ddd; border-radius: 4px;" {% if is_readonly %}disabled{% endif %}>
+                <select id="new-device-type" style="margin-right:8px; padding: 6px 8px; border: 1px solid #ddd; border-radius: 4px;" {% if is_readonly %}disabled{% endif %}>
                     <option value="cisco_ios">Cisco IOS</option>
                     <option value="cisco_asa">Cisco ASA</option>
                     <option value="mikrotik_routeros">Mikrotik RouterOS</option>
                     <option value="fortinet">Fortinet</option>
                     <option value="palo_alto">Palo Alto</option>
                 </select>
-                <input type="text" id="new-device-username" placeholder="Логин" style="margin-right:8px; padding: 6px 8px; border: 1px solid #ddd; border-radius: 4px;">
-                <input type="password" id="new-device-password" placeholder="Пароль" style="margin-right:8px; padding: 6px 8px; border: 1px solid #ddd; border-radius: 4px;">
+                <input type="text" id="new-device-username" placeholder="Логин" style="margin-right:8px; padding: 6px 8px; border: 1px solid #ddd; border-radius: 4px;" {% if is_readonly %}disabled{% endif %}>
+                <input type="password" id="new-device-password" placeholder="Пароль" style="margin-right:8px; padding: 6px 8px; border: 1px solid #ddd; border-radius: 4px;" {% if is_readonly %}disabled{% endif %}>
+                {% if not is_readonly %}
                 <button onclick="addDevice()" style="padding: 6px 12px; background-color: #38a169; color: white; border: none; border-radius: 4px; cursor: pointer;">Сохранить</button>
                 <button onclick="hideAddDeviceForm()" style="padding: 6px 12px; background-color: #e53e3e; color: white; border: none; border-radius: 4px; cursor: pointer; margin-left: 8px;">Отмена</button>
+                {% endif %}
             </div>
             <div id="device-connections-modal" style="display:none; position:fixed; top:10%; left:50%; transform:translateX(-50%); background:#fff; border-radius:8px; box-shadow:0 2px 12px #0002; padding:24px; z-index:1000; max-width: 90%; max-height: 80%; overflow-y: auto;">
                 <h3>Соединения устройства <span id="modal-device-name"></span></h3>
@@ -332,33 +338,61 @@
                 <button onclick="closeConnectionsModal()" style="margin-top:12px; padding: 6px 12px; background-color: #4a7dff; color: white; border: none; border-radius: 4px; cursor: pointer;">Закрыть</button>
             </div>
         </div>
-        <!-- Отображение подключений -->
+        <!-- Централизованное управление конфигурацией -->
         <div class="tab-panel">
-            <h2>Отображение подключений</h2>
-            <div class="map-container">
-                <div class="map-placeholder">
-                    <i class="fas fa-globe-europe fa-3x"></i><br>
-                    <span>Здесь будет карта с соединениями (пример визуализации)</span>
+            <h2>Централизованное управление конфигурацией</h2>
+            <div style="margin-bottom: 18px;">
+                <label for="config-device-select"><b>Устройство:</b></label>
+                <select id="config-device-select" style="min-width: 180px; padding: 8px; border-radius: 6px; border: 1px solid #bfc9db; margin-left: 8px;" {% if is_readonly %}disabled{% endif %}>
+                    <!-- Динамически заполняется -->
+                </select>
+                <button onclick="loadDeviceConfigs()" class="action-button primary" style="margin-left: 8px;" {% if is_readonly %}disabled{% endif %}>Загрузить конфигурацию</button>
+            </div>
+            <div style="display: flex; gap: 30px; flex-wrap: wrap;">
+                <div style="flex: 2; min-width: 340px;">
+                    <b>Текущая конфигурация (NAT, ACL, политики):</b>
+                    <textarea id="device-config-editor" style="width: 100%; min-height: 180px; margin-top: 8px; border-radius: 6px; border: 1.5px solid #bfc9db; padding: 10px; font-family: monospace;" {% if is_readonly %}readonly{% endif %}></textarea>
+                    <div style="margin-top: 10px;">
+                        {% if not is_readonly %}
+                        <button onclick="saveDeviceConfig()" class="action-button primary">Сохранить</button>
+                        <button onclick="pushConfigToDevices()" class="action-button" style="background:#217346; color:white;">Применить на выбранные</button>
+                        <button onclick="backupDeviceConfig()" class="action-button" style="background:#4a7dff; color:white;">Сделать резервную копию</button>
+                        {% endif %}
+                    </div>
+                </div>
+                <div style="flex: 1; min-width: 260px;">
+                    <b>Резервные копии:</b>
+                    <table class="connections-table" style="margin-top:8px;">
+                        <thead><tr><th>Дата</th><th>Действие</th></tr></thead>
+                        <tbody id="backup-list"><tr><td colspan="2" style="text-align:center; color:#888;">Нет данных</td></tr></tbody>
+                    </table>
                 </div>
             </div>
-            <div style="display: flex; gap: 30px;">
-                <div>
-                    <b>Группировка:</b>
-                    <select class="group-select">
-                        <option>По владельцу</option>
-                        <option>По IP</option>
-                    </select>
-                </div>
-                <div>
-                    <b>Список соединений:</b>
-                    <ul style="margin: 0; padding-left: 18px;">
-                        <li>OneDrive.exe (157.55.124.123)</li>
-                        <li>spartan.edge.exe (157.56.96.215)</li>
-                        <li>Microsoft.Web.Server.Http (5.62.251.151)</li>
-                        <!-- ... -->
-                    </ul>
-                </div>
+            <div style="margin-top: 24px;">
+                <b>История изменений (audit trail):</b>
+                <table class="connections-table" style="margin-top:8px;">
+                    <thead><tr><th>Пользователь</th><th>Действие</th><th>Время</th><th>Детали</th></tr></thead>
+                    <tbody id="audit-log-list"><tr><td colspan="4" style="text-align:center; color:#888;">Нет данных</td></tr></tbody>
+                </table>
             </div>
+        </div>
+        <!-- Интерфейс для отправки команд/скриптов -->
+        <div class="tab-panel">
+            <h2>Интерфейс для отправки команд/скриптов</h2>
+            <div style="margin-bottom: 18px;">
+                <label for="cli-device-select"><b>Устройство:</b></label>
+                <select id="cli-device-select" style="min-width: 180px; padding: 8px; border-radius: 6px; border: 1px solid #bfc9db; margin-left: 8px;" {% if is_readonly %}disabled{% endif %}>
+                    <option value="">-- Выберите устройство --</option>
+                    <option value="1">Пример устройства 1</option>
+                    <option value="2">Пример устройства 2</option>
+                </select>
+            </div>
+            <div style="margin-bottom: 18px;">
+                <label for="cli-command-input"><b>CLI-команда или скрипт:</b></label><br>
+                <textarea id="cli-command-input" style="width: 100%; min-height: 80px; margin-top: 8px; border-radius: 6px; border: 1.5px solid #bfc9db; padding: 10px; font-family: monospace;" {% if is_readonly %}readonly{% endif %}></textarea>
+            </div>
+            <button onclick="sendCliCommand()" class="action-button primary" {% if is_readonly %}disabled{% endif %}>Выполнить</button>
+            <div id="cli-command-result" style="margin-top: 24px; background: #f7fafc; border-radius: 8px; padding: 16px; min-height: 40px; color: #1a3a5f; font-family: monospace;"></div>
         </div>
         <!-- Мониторинг полосы пропускания -->
         <div class="tab-panel">
@@ -762,6 +796,67 @@
         }
     }
 
+    // --- Централизованное управление конфигами ---
+    async function loadDeviceConfigs() {
+        // TODO: Загрузить конфиг выбранного устройства через API
+        const select = document.getElementById('config-device-select');
+        const selected = select.value;
+        if (!selected) {
+            alert('Выберите устройство');
+            return;
+        }
+        // Пример запроса (реализовать API):
+        // const resp = await fetch(`/api/device_configs?id=${selected}`);
+        // const data = await resp.json();
+        // document.getElementById('device-config-editor').value = data.config || '';
+        document.getElementById('device-config-editor').value = '# Здесь будет конфигурация устройства';
+    }
+    async function saveDeviceConfig() {
+        // TODO: Сохранить конфиг через API
+        alert('Функция сохранения конфига будет реализована');
+    }
+    async function pushConfigToDevices() {
+        // TODO: Массовое применение конфига через API
+        alert('Массовое применение конфига будет реализовано');
+    }
+    async function backupDeviceConfig() {
+        // TODO: Сделать резервную копию через API
+        alert('Создание резервной копии будет реализовано');
+    }
+    async function loadBackups() {
+        // TODO: Загрузить список резервных копий через API
+        document.getElementById('backup-list').innerHTML = '<tr><td colspan="2" style="text-align:center; color:#888;">Нет данных</td></tr>';
+    }
+    async function loadAuditLog() {
+        // TODO: Загрузить историю изменений через API
+        document.getElementById('audit-log-list').innerHTML = '<tr><td colspan="4" style="text-align:center; color:#888;">Нет данных</td></tr>';
+    }
+    async function loadConfigDevicesList() {
+        // TODO: Загрузить список устройств через API
+        const select = document.getElementById('config-device-select');
+        select.innerHTML = '<option value="">-- Выберите устройство --</option><option value="1">Пример устройства 1</option><option value="2">Пример устройства 2</option>';
+    }
+
+    // --- CLI-команды ---
+    async function sendCliCommand() {
+        const deviceId = document.getElementById('cli-device-select').value;
+        const command = document.getElementById('cli-command-input').value;
+        const resultDiv = document.getElementById('cli-command-result');
+        if (!deviceId) {
+            alert('Выберите устройство');
+            return;
+        }
+        if (!command.trim()) {
+            alert('Введите команду');
+            return;
+        }
+        resultDiv.textContent = 'Выполнение...';
+        // TODO: Реализовать реальный запрос к backend
+        setTimeout(() => {
+            resultDiv.textContent = 'Результат выполнения команды\n---\n' + command + '\n(пример вывода)';
+        }, 1000);
+    }
+
     window.addEventListener('DOMContentLoaded', function() {
         // Восстанавливаем вкладку из localStorage
         let idx = 0;
@@ -779,6 +874,8 @@
         document.querySelectorAll('.adapter-info').forEach(function(block) {
             block.classList.remove('open');
         });
+        // Загружаем список устройств при открытии вкладки управления (теперь индекс 1)
+        document.querySelectorAll('.tab-item')[1].addEventListener('click', loadConfigDevicesList);
     });
 
     // Сворачивание/разворачивание адаптеров
@@ -797,4 +894,3 @@
 </script>
 </body>
 </html>
-
