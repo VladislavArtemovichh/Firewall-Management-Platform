@@ -20,10 +20,15 @@ from .database import (
     logout_user_session,
     get_user_id_by_username,
     cleanup_anomalous_sessions,
-    cleanup_user_sessions
+    cleanup_user_sessions,
+    get_all_firewall_rules, add_firewall_rule, update_firewall_rule, delete_firewall_rule, toggle_firewall_rule,
+    add_audit_log, get_audit_log, create_firewall_rules_table
 )
+import datetime
+import re
 
 templates = Jinja2Templates(directory="templates")
+audit_log = []
 
 def setup_routes(app: FastAPI):
     """Настраивает маршруты приложения"""
@@ -407,63 +412,105 @@ def setup_routes(app: FastAPI):
             return JSONResponse(content={"error": str(e)}, status_code=500)
 
     # --- API для управления правилами ---
-    from fastapi import Body
+    @app.on_event("startup")
+    async def startup_event():
+        await create_firewall_rules_table()
 
     @app.get("/api/rules")
     async def get_rules():
-        """Получить все правила"""
-        return [rule.__dict__ for rule in firewall_rules]
+        return await get_all_firewall_rules()
 
     @app.post("/api/rules")
     async def add_rule(request: Request):
-        """Добавить новое правило"""
-        form = await request.form()
-        global next_rule_id
-        rule = FirewallRule(
-            id=next_rule_id,
-            name=str(form.get("name", "")),
-            protocol=str(form.get("protocol", "any")),
-            port=str(form.get("port", "")) if form.get("port") is not None else None,
-            direction=str(form.get("direction", "any")),
-            action=str(form.get("action", "allow")),
-            enabled=str(form.get("enabled", "true")).lower() == "true",
-            comment=str(form.get("comment", ""))
-        )
-        firewall_rules.append(rule)
-        next_rule_id += 1
-        return {"success": True, "rule": rule.__dict__}
+        try:
+            form = await request.form()
+            data = {
+                'name': str(form.get("name", "")).strip(),
+                'protocol': str(form.get("protocol", "any")),
+                'port': str(form.get("port", "")) if form.get("port") is not None else None,
+                'direction': str(form.get("direction", "any")),
+                'action': str(form.get("action", "allow")),
+                'enabled': str(form.get("enabled", "true")).lower() == "true",
+                'comment': str(form.get("comment", ""))
+            }
+            # Валидация дубликатов и портов (можно вынести в отдельную функцию)
+            rules = await get_all_firewall_rules()
+            for r in rules:
+                if r['name'].strip().lower() == data['name'].lower() and r['protocol'] == data['protocol'] and r['port'] == data['port'] and r['direction'] == data['direction'] and r['action'] == data['action']:
+                    return {"error": "Такое правило уже существует!"}
+            if data['port']:
+                import re
+                if not re.match(r'^\d+(-\d+)?$', data['port']):
+                    return {"error": "Порт должен быть числом или диапазоном (например, 80 или 1000-2000)"}
+                parts = data['port'].split('-')
+                start = int(parts[0])
+                end = int(parts[1]) if len(parts) == 2 else start
+                if start < 1 or (end < start):
+                    return {"error": "Некорректный диапазон портов"}
+            rule = await add_firewall_rule(data)
+            user = request.cookies.get('username', 'system')
+            user_role = users.get(user, {}).get("role", "unknown").value if user in users else "unknown"
+            await add_audit_log(user, user_role, 'Добавление', f'Добавлено правило: {rule["name"]} ({rule["protocol"]}/{rule["port"]})')
+            return {"success": True, "rule": rule}
+        except Exception as e:
+            print(f"Ошибка при добавлении правила: {e}")
+            import traceback
+            traceback.print_exc()
+            return {"error": f"Ошибка при добавлении правила: {str(e)}"}
 
     @app.put("/api/rules/{rule_id}")
     async def update_rule(rule_id: int, request: Request):
-        """Редактировать правило"""
         form = await request.form()
-        for rule in firewall_rules:
-            if rule.id == rule_id:
-                rule.name = str(form.get("name", rule.name))
-                rule.protocol = str(form.get("protocol", rule.protocol))
-                rule.port = str(form.get("port", rule.port)) if form.get("port") is not None else rule.port
-                rule.direction = str(form.get("direction", rule.direction))
-                rule.action = str(form.get("action", rule.action))
-                rule.enabled = str(form.get("enabled", str(rule.enabled))).lower() == "true"
-                rule.comment = str(form.get("comment", rule.comment))
-                return {"success": True, "rule": rule.__dict__}
-        return {"error": "Rule not found"}
+        data = {
+            'name': str(form.get("name", "")).strip(),
+            'protocol': str(form.get("protocol", "any")),
+            'port': str(form.get("port", "")) if form.get("port") is not None else None,
+            'direction': str(form.get("direction", "any")),
+            'action': str(form.get("action", "allow")),
+            'enabled': str(form.get("enabled", "true")).lower() == "true",
+            'comment': str(form.get("comment", ""))
+        }
+        rules = await get_all_firewall_rules()
+        for r in rules:
+            if r['id'] != rule_id and r['name'].strip().lower() == data['name'].lower() and r['protocol'] == data['protocol'] and r['port'] == data['port'] and r['direction'] == data['direction'] and r['action'] == data['action']:
+                return {"error": "Такое правило уже существует!"}
+        if data['port']:
+            import re
+            if not re.match(r'^\d+(-\d+)?$', data['port']):
+                return {"error": "Порт должен быть числом или диапазоном (например, 80 или 1000-2000)"}
+            parts = data['port'].split('-')
+            start = int(parts[0])
+            end = int(parts[1]) if len(parts) == 2 else start
+            if start < 1 or (end < start):
+                return {"error": "Некорректный диапазон портов"}
+        rule = await update_firewall_rule(rule_id, data)
+        user = request.cookies.get('username', 'system')
+        user_role = users.get(user, {}).get("role", "unknown").value if user in users else "unknown"
+        await add_audit_log(user, user_role, 'Изменение', f'Изменено правило: {rule["name"]} ({rule["protocol"]}/{rule["port"]})')
+        return {"success": True, "rule": rule}
 
     @app.delete("/api/rules/{rule_id}")
-    async def delete_rule(rule_id: int):
-        """Удалить правило"""
-        global firewall_rules
-        firewall_rules = [r for r in firewall_rules if r.id != rule_id]
+    async def delete_rule(rule_id: int, request: Request):
+        rules = await get_all_firewall_rules()
+        rule = next((r for r in rules if r['id'] == rule_id), None)
+        await delete_firewall_rule(rule_id)
+        user = request.cookies.get('username', 'system')
+        user_role = users.get(user, {}).get("role", "unknown").value if user in users else "unknown"
+        if rule:
+            await add_audit_log(user, user_role, 'Удаление', f'Удалено правило: {rule["name"]} ({rule["protocol"]}/{rule["port"]})')
         return {"success": True}
 
     @app.post("/api/rules/{rule_id}/toggle")
-    async def toggle_rule(rule_id: int):
-        """Включить/выключить правило"""
-        for rule in firewall_rules:
-            if rule.id == rule_id:
-                rule.enabled = not rule.enabled
-                return {"success": True, "enabled": rule.enabled}
-        return {"error": "Rule not found"}
+    async def toggle_rule(rule_id: int, request: Request):
+        rule = await toggle_firewall_rule(rule_id)
+        user = request.cookies.get('username', 'system')
+        user_role = users.get(user, {}).get("role", "unknown").value if user in users else "unknown"
+        await add_audit_log(user, user_role, 'Включение' if rule['enabled'] else 'Отключение', f'{"Включено" if rule["enabled"] else "Отключено"} правило: {rule["name"]} ({rule["protocol"]}/{rule["port"]})')
+        return {"success": True, "enabled": rule['enabled']}
+
+    @app.get("/api/rules/audit")
+    async def get_rules_audit():
+        return await get_audit_log()
 
     @app.get("/rules")
     def get_rules_page(request: Request):

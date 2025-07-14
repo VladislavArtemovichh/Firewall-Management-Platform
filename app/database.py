@@ -485,3 +485,143 @@ async def cleanup_user_sessions(user_id: int):
         return deleted_count
     finally:
         await conn.close() 
+
+async def create_firewall_rules_table():
+    conn = await asyncpg.connect(
+        user=DB_USER,
+        password=DB_PASSWORD,
+        database=DB_NAME,
+        host=DB_HOST,
+        port=DB_PORT
+    )
+    await conn.execute('''
+        CREATE TABLE IF NOT EXISTS firewall_rules (
+            id SERIAL PRIMARY KEY,
+            name VARCHAR(128) NOT NULL,
+            protocol VARCHAR(16) NOT NULL,
+            port VARCHAR(32),
+            direction VARCHAR(16) NOT NULL,
+            action VARCHAR(16) NOT NULL,
+            enabled BOOLEAN DEFAULT TRUE,
+            comment TEXT
+        );
+    ''')
+    await conn.execute('''
+        CREATE TABLE IF NOT EXISTS audit_log (
+            id SERIAL PRIMARY KEY,
+            username VARCHAR(64),
+            user_role VARCHAR(32),
+            action VARCHAR(32),
+            details TEXT,
+            time TIMESTAMP DEFAULT NOW()
+        );
+    ''')
+    
+    # Миграция: добавляем поле user_role если его нет
+    try:
+        await conn.execute('ALTER TABLE audit_log ADD COLUMN IF NOT EXISTS user_role VARCHAR(32)')
+        # Обновляем существующие записи, устанавливая user_role = 'unknown' для старых записей
+        await conn.execute('UPDATE audit_log SET user_role = \'unknown\' WHERE user_role IS NULL')
+    except Exception as e:
+        print(f"Ошибка при миграции audit_log: {e}")
+    
+    await conn.close()
+
+async def get_all_firewall_rules():
+    conn = await asyncpg.connect(
+        user=DB_USER,
+        password=DB_PASSWORD,
+        database=DB_NAME,
+        host=DB_HOST,
+        port=DB_PORT
+    )
+    rows = await conn.fetch('SELECT * FROM firewall_rules ORDER BY id')
+    await conn.close()
+    return [dict(row) for row in rows]
+
+async def add_firewall_rule(rule):
+    conn = await asyncpg.connect(
+        user=DB_USER,
+        password=DB_PASSWORD,
+        database=DB_NAME,
+        host=DB_HOST,
+        port=DB_PORT
+    )
+    row = await conn.fetchrow('''
+        INSERT INTO firewall_rules (name, protocol, port, direction, action, enabled, comment)
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
+        RETURNING *
+    ''', rule['name'], rule['protocol'], rule['port'], rule['direction'], rule['action'], rule['enabled'], rule['comment'])
+    await conn.close()
+    return dict(row)
+
+async def update_firewall_rule(rule_id, rule):
+    conn = await asyncpg.connect(
+        user=DB_USER,
+        password=DB_PASSWORD,
+        database=DB_NAME,
+        host=DB_HOST,
+        port=DB_PORT
+    )
+    row = await conn.fetchrow('''
+        UPDATE firewall_rules SET
+            name=$1, protocol=$2, port=$3, direction=$4, action=$5, enabled=$6, comment=$7
+        WHERE id=$8 RETURNING *
+    ''', rule['name'], rule['protocol'], rule['port'], rule['direction'], rule['action'], rule['enabled'], rule['comment'], rule_id)
+    await conn.close()
+    return dict(row)
+
+async def delete_firewall_rule(rule_id):
+    conn = await asyncpg.connect(
+        user=DB_USER,
+        password=DB_PASSWORD,
+        database=DB_NAME,
+        host=DB_HOST,
+        port=DB_PORT
+    )
+    await conn.execute('DELETE FROM firewall_rules WHERE id=$1', rule_id)
+    await conn.close()
+
+async def toggle_firewall_rule(rule_id):
+    conn = await asyncpg.connect(
+        user=DB_USER,
+        password=DB_PASSWORD,
+        database=DB_NAME,
+        host=DB_HOST,
+        port=DB_PORT
+    )
+    row = await conn.fetchrow('''
+        UPDATE firewall_rules SET enabled = NOT enabled WHERE id=$1 RETURNING *
+    ''', rule_id)
+    await conn.close()
+    return dict(row)
+
+async def add_audit_log(username, user_role, action, details):
+    try:
+        conn = await asyncpg.connect(
+            user=DB_USER,
+            password=DB_PASSWORD,
+            database=DB_NAME,
+            host=DB_HOST,
+            port=DB_PORT
+        )
+        await conn.execute('''
+            INSERT INTO audit_log (username, user_role, action, details) VALUES ($1, $2, $3, $4)
+        ''', username, user_role, action, details)
+        await conn.close()
+    except Exception as e:
+        print(f"Ошибка при записи в audit_log: {e}")
+        import traceback
+        traceback.print_exc()
+
+async def get_audit_log():
+    conn = await asyncpg.connect(
+        user=DB_USER,
+        password=DB_PASSWORD,
+        database=DB_NAME,
+        host=DB_HOST,
+        port=DB_PORT
+    )
+    rows = await conn.fetch('SELECT * FROM audit_log ORDER BY time DESC LIMIT 100')
+    await conn.close()
+    return [dict(row) for row in rows] 

@@ -224,8 +224,27 @@
         <div class="header">
             <span class="header-title">Правила доступа</span>
             <div style="display: flex; gap: 10px;">
+            {% if user_role == 'firewall-admin' %}
+                <button class="btn btn-secondary" onclick="openAuditModal()"><i class="fas fa-history"></i> История изменений</button>
+            {% endif %}
                 <button class="btn btn-primary" onclick="openRuleModal()"><i class="fas fa-plus"></i> Добавить правило</button>
             </div>
+        </div>
+        <!-- Фильтры и поиск -->
+        <div style="display: flex; gap: 16px; margin-bottom: 18px; align-items: center;">
+            <input type="text" id="search-input" placeholder="Поиск по названию..." style="padding: 7px 12px; border-radius: 5px; border: 1px solid #cbd5e0; min-width: 220px;">
+            <select id="filter-protocol" style="padding: 7px 12px; border-radius: 5px; border: 1px solid #cbd5e0;">
+                <option value="">Все протоколы</option>
+                <option value="tcp">TCP</option>
+                <option value="udp">UDP</option>
+                <option value="icmp">ICMP</option>
+                <option value="any">Любой</option>
+            </select>
+            <select id="filter-action" style="padding: 7px 12px; border-radius: 5px; border: 1px solid #cbd5e0;">
+                <option value="">Все действия</option>
+                <option value="allow">Разрешить</option>
+                <option value="deny">Запретить</option>
+            </select>
         </div>
         <div style="margin-bottom: 40px;">
             <h3 class="section-title" style="margin-bottom: 10px;">Включенные правила</h3>
@@ -333,21 +352,63 @@
         </div>
     </div>
 
+    <!-- Модальное окно истории изменений -->
+    {% if user_role == 'firewall-admin' %}
+    <div class="modal" id="audit-modal">
+        <div class="modal-content" style="min-width: 420px; max-width: 90vw;">
+            <div class="modal-title">История изменений правил</div>
+            <div id="audit-list" style="max-height: 350px; overflow-y: auto; font-size: 0.98rem; color: #222;">
+                Загрузка...
+            </div>
+            <div class="modal-buttons">
+                <button class="btn btn-secondary" onclick="closeAuditModal()">Закрыть</button>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
 <script>
+// Переменная роли пользователя из шаблона
+const USER_ROLE = '{{ user_role }}';
+
 // --- Работа с API ---
 async function fetchRules() {
     const res = await fetch('/api/rules');
     return await res.json();
 }
 async function addRule(data) {
-    const form = new FormData();
-    for (const k in data) form.append(k, data[k]);
-    return await fetch('/api/rules', {method: 'POST', body: form});
+    try {
+        const form = new FormData();
+        for (const k in data) form.append(k, data[k]);
+        const response = await fetch('/api/rules', {method: 'POST', body: form});
+        const result = await response.json();
+        if (result.error) {
+            alert('Ошибка: ' + result.error);
+            return false;
+        }
+        return true;
+    } catch (error) {
+        console.error('Ошибка при добавлении правила:', error);
+        alert('Ошибка при добавлении правила: ' + error.message);
+        return false;
+    }
 }
 async function updateRule(id, data) {
-    const form = new FormData();
-    for (const k in data) form.append(k, data[k]);
-    return await fetch(`/api/rules/${id}`, {method: 'PUT', body: form});
+    try {
+        const form = new FormData();
+        for (const k in data) form.append(k, data[k]);
+        const response = await fetch(`/api/rules/${id}`, {method: 'PUT', body: form});
+        const result = await response.json();
+        if (result.error) {
+            alert('Ошибка: ' + result.error);
+            return false;
+        }
+        return true;
+    } catch (error) {
+        console.error('Ошибка при обновлении правила:', error);
+        alert('Ошибка при обновлении правила: ' + error.message);
+        return false;
+    }
 }
 async function deleteRule(id) {
     return await fetch(`/api/rules/${id}`, {method: 'DELETE'});
@@ -356,38 +417,58 @@ async function toggleRule(id) {
     return await fetch(`/api/rules/${id}/toggle`, {method: 'POST'});
 }
 
-// --- Рендер таблиц ---
+// --- Поиск и фильтрация ---
+let allRulesCache = [];
+
+async function fetchRules() {
+    const res = await fetch('/api/rules');
+    const data = await res.json();
+    allRulesCache = data;
+    return data;
+}
+
+function filterRules(rules) {
+    const search = document.getElementById('search-input').value.trim().toLowerCase();
+    const proto = document.getElementById('filter-protocol').value;
+    const act = document.getElementById('filter-action').value;
+    return rules.filter(rule => {
+        let ok = true;
+        if (search && !rule.name.toLowerCase().includes(search)) ok = false;
+        if (proto && rule.protocol !== proto) ok = false;
+        if (act && rule.action !== act) ok = false;
+        return ok;
+    });
+}
+
 async function renderRules() {
-    const rules = await fetchRules();
+    // Используем кэш, чтобы не делать лишний запрос
+    const rules = allRulesCache.length ? allRulesCache : await fetchRules();
+    const filtered = filterRules(rules);
     const enabledTbody = document.getElementById('enabled-rules-tbody');
     const disabledTbody = document.getElementById('disabled-rules-tbody');
     enabledTbody.innerHTML = '';
     disabledTbody.innerHTML = '';
-    for (const rule of rules) {
+    for (const rule of filtered) {
         const tr = document.createElement('tr');
-        // Чекбокс включения/выключения рядом с названием
         const tdCheck = document.createElement('td');
         tdCheck.innerHTML = `<input type='checkbox' ${rule.enabled ? 'checked' : ''} onchange='onToggleRule(${rule.id})'>`;
         tr.appendChild(tdCheck);
-        // Название
         tr.innerHTML += `<td>${rule.name}</td>`;
-        // Протокол
         tr.innerHTML += `<td>${rule.protocol === 'any' ? 'Любой' : rule.protocol.toUpperCase()}</td>`;
-        // Порт
         tr.innerHTML += `<td>${rule.port || ''}</td>`;
-        // Направление
         tr.innerHTML += `<td>${directionName(rule.direction)}</td>`;
-        // Действие
         tr.innerHTML += `<td>${actionName(rule.action)}</td>`;
-        // Комментарий
         tr.innerHTML += `<td>${rule.comment || ''}</td>`;
-        // Изменить
         const tdEdit = document.createElement('td');
         tdEdit.className = 'actions';
-        tdEdit.innerHTML = `
-            <button class='btn btn-primary' style='background: var(--primary); color: white; margin-right: 8px;' title='Изменить' onclick='onEditRule(${rule.id})'><i class='fas fa-edit'></i> Изменить</button>
-            <button class='btn btn-danger' style='background: #e53e3e; color: white;' title='Удалить' onclick='onDeleteRule(${rule.id})'><i class='fas fa-trash'></i> Удалить</button>
-        `;
+        if (USER_ROLE === 'firewall-admin') {
+            tdEdit.innerHTML = `
+                <button class='btn btn-primary' style='background: var(--primary); color: white; margin-right: 8px;' title='Изменить' onclick='onEditRule(${rule.id})'><i class='fas fa-edit'></i> Изменить</button>
+                <button class='btn btn-danger' style='background: #e53e3e; color: white;' title='Удалить' onclick='onDeleteRule(${rule.id})'><i class='fas fa-trash'></i> Удалить</button>
+            `;
+        } else {
+            tdEdit.innerHTML = `<span style='color:#888;'>Нет доступа</span>`;
+        }
         tr.appendChild(tdEdit);
         if (rule.enabled) {
             enabledTbody.appendChild(tr);
@@ -396,6 +477,7 @@ async function renderRules() {
         }
     }
 }
+
 function directionName(val) {
     if (val === 'inbound') return 'Входящее';
     if (val === 'outbound') return 'Исходящее';
@@ -430,10 +512,65 @@ async function fillRuleForm(id) {
     document.getElementById('rule-enabled').checked = rule.enabled;
     document.getElementById('rule-comment').value = rule.comment || '';
 }
+// --- Валидация при добавлении/редактировании ---
+function validateRule(data, isEdit = false) {
+    // Проверка на дубли
+    const duplicate = allRulesCache.find(r =>
+        r.name.trim().toLowerCase() === data.name.trim().toLowerCase() &&
+        r.protocol === data.protocol &&
+        r.port === data.port &&
+        r.direction === data.direction &&
+        r.action === data.action &&
+        (!isEdit || r.id != data.id)
+    );
+    if (duplicate) return 'Такое правило уже существует!';
+    // Проверка порта
+    if (data.port) {
+        if (!/^\d+(-\d+)?$/.test(data.port.trim())) {
+            return 'Порт должен быть числом или диапазоном (например, 80 или 1000-2000)';
+        }
+        const [start, end] = data.port.split('-').map(Number);
+        if (isNaN(start) || (end && isNaN(end)) || start < 1 || (end && end < start)) {
+            return 'Некорректный диапазон портов';
+        }
+    }
+    return null;
+}
+// --- Модальное окно истории ---
+function openAuditModal() {
+    document.getElementById('audit-modal').style.display = 'flex';
+    loadAudit();
+}
+function closeAuditModal() {
+    document.getElementById('audit-modal').style.display = 'none';
+}
+async function loadAudit() {
+    const list = document.getElementById('audit-list');
+    list.innerHTML = 'Загрузка...';
+    try {
+        const res = await fetch('/api/rules/audit');
+        const data = await res.json();
+        if (!Array.isArray(data) || data.length === 0) {
+            list.innerHTML = '<div style="color:#888; text-align:center;">Нет истории изменений</div>';
+            return;
+        }
+        let html = '<ul style="padding-left:18px;">';
+        for (const ev of data) {
+            const roleText = ev.user_role ? ` [${ev.user_role}]` : '';
+            html += `<li><b>${ev.user || 'Система'}${roleText}</b> [${ev.time}] — <span style="color:#217346;">${ev.action}</span>: ${ev.details}</li>`;
+        }
+        html += '</ul>';
+        list.innerHTML = html;
+    } catch {
+        list.innerHTML = '<div style="color:#e53e3e;">Ошибка загрузки истории</div>';
+    }
+}
+// --- Переопределяем submit формы ---
 document.getElementById('rule-form').onsubmit = async function(e) {
     e.preventDefault();
     const id = document.getElementById('rule-id').value;
     const data = {
+        id,
         name: document.getElementById('rule-name').value,
         protocol: document.getElementById('rule-protocol').value,
         port: document.getElementById('rule-port').value,
@@ -442,13 +579,26 @@ document.getElementById('rule-form').onsubmit = async function(e) {
         enabled: document.getElementById('rule-enabled').checked,
         comment: document.getElementById('rule-comment').value
     };
-    if (id) {
-        await updateRule(id, data);
-    } else {
-        await addRule(data);
+    // Валидация
+    const err = validateRule(data, !!id);
+    if (err) {
+        alert(err);
+        return;
     }
-    closeRuleModal();
-    await renderRules();
+    
+    let success = false;
+    if (id) {
+        success = await updateRule(id, data);
+    } else {
+        success = await addRule(data);
+    }
+    
+    if (success) {
+        closeRuleModal();
+        // Обновляем кэш и перерисовываем
+        allRulesCache = await fetchRules();
+        renderRules();
+    }
 };
 // --- Удаление выбранного правила ---
 // Удаляю весь блок:
@@ -458,7 +608,13 @@ function logout() {
     window.location.href = '/logout';
 }
 // --- Инициализация ---
-window.addEventListener('DOMContentLoaded', renderRules);
+window.addEventListener('DOMContentLoaded', async function() {
+    await fetchRules();
+    renderRules();
+    document.getElementById('search-input').oninput = renderRules;
+    document.getElementById('filter-protocol').onchange = renderRules;
+    document.getElementById('filter-action').onchange = renderRules;
+});
 // --- JS для удаления через модальное окно ---
 let ruleIdToDelete = null;
 window.onDeleteRule = function(id) {
@@ -479,7 +635,8 @@ document.getElementById('confirm-delete-rule').onclick = async function() {
 };
 window.onToggleRule = async function(id) {
     await toggleRule(id);
-    await renderRules();
+    await fetchRules();
+    renderRules();
 };
 window.onEditRule = async function(id) {
     openRuleModal(id);
