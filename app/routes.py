@@ -24,8 +24,11 @@ from .database import (
     get_all_firewall_rules, add_firewall_rule, update_firewall_rule, delete_firewall_rule, toggle_firewall_rule,
     add_audit_log, get_audit_log, create_firewall_rules_table
 )
+from .metrics import metrics_collector, start_metrics_collection
 import datetime
 import re
+import psutil
+import time
 
 templates = Jinja2Templates(directory="templates")
 audit_log = []
@@ -67,7 +70,8 @@ def setup_routes(app: FastAPI):
             return response
 
         # Записываем неудачную попытку
-        record_login_attempt(username)
+        ip_address = request.client.host if request.client else None
+        record_login_attempt(username, ip_address)
 
         # Перенаправляем с ошибкой
         response = RedirectResponse(url="/", status_code=303)
@@ -532,3 +536,180 @@ def setup_routes(app: FastAPI):
     async def too_many_requests_handler(request: Request, exc: HTTPException):
         """Обработчик ошибки 429 (Too Many Requests)"""
         return RedirectResponse(url="/", status_code=303)
+
+    # --- Маршруты для метрик (только для админов) ---
+    @app.get("/metrics")
+    def get_metrics_page(request: Request):
+        """Страница метрик (только для администраторов)"""
+        username = request.cookies.get("username")
+        user_role = None
+        if username and username in users:
+            user_role = users[username]["role"].value
+        if user_role != "firewall-admin":
+            return RedirectResponse(url="/dashboard", status_code=303)
+        return templates.TemplateResponse("metrics.html", {"request": request, "user_role": user_role})
+
+    @app.get("/api/metrics/summary")
+    async def get_metrics_summary(request: Request):
+        """API для получения сводки метрик"""
+        username = request.cookies.get("username")
+        user_role = None
+        if username and username in users:
+            user_role = users[username]["role"].value
+        if user_role != "firewall-admin":
+            return JSONResponse(content={"error": "Доступ запрещен"}, status_code=403)
+        
+        try:
+            # Получаем данные для метрик приложения
+            online_users = await get_online_users()
+            active_users = len(online_users)
+            
+            rules = await get_all_firewall_rules()
+            firewall_rules_count = len(rules)
+            
+            # Получаем активные сессии
+            conn = await asyncpg.connect(
+                user=DB_USER,
+                password=DB_PASSWORD,
+                database=DB_NAME,
+                host=DB_HOST,
+                port=DB_PORT
+            )
+            active_sessions = await conn.fetchval('SELECT COUNT(*) FROM user_sessions WHERE is_online = true')
+            await conn.close()
+            
+            # Собираем метрики приложения
+            metrics_collector.collect_app_metrics(active_users, firewall_rules_count, active_sessions)
+            metrics_collector.collect_security_metrics()
+            
+            # Получаем сводку
+            summary = metrics_collector.get_metrics_summary()
+            return JSONResponse(content=summary)
+            
+        except Exception as e:
+            import traceback
+            print(f"[METRICS API ERROR] Ошибка при получении метрик: {e}")
+            traceback.print_exc()
+            return JSONResponse(content={"error": str(e)}, status_code=500)
+
+    @app.get("/api/metrics/charts")
+    async def get_metrics_charts(request: Request):
+        """API для получения данных для графиков"""
+        username = request.cookies.get("username")
+        user_role = None
+        if username and username in users:
+            user_role = users[username]["role"].value
+        if user_role != "firewall-admin":
+            return JSONResponse(content={"error": "Доступ запрещен"}, status_code=403)
+        
+        try:
+            chart_data = metrics_collector.get_chart_data()
+            return JSONResponse(content=chart_data)
+        except Exception as e:
+            print(f"Ошибка при получении данных графиков: {e}")
+            return JSONResponse(content={"error": str(e)}, status_code=500)
+
+    @app.post("/api/metrics/record-request")
+    async def record_request_metrics(request: Request):
+        """API для записи метрик запроса"""
+        try:
+            form_data = await request.form()
+            response_time = float(form_data.get("response_time", 0))
+            is_error = form_data.get("is_error", "false").lower() == "true"
+            
+            metrics_collector.record_request(response_time, is_error)
+            return JSONResponse(content={"success": True})
+        except Exception as e:
+            print(f"Ошибка при записи метрик запроса: {e}")
+            return JSONResponse(content={"error": str(e)}, status_code=500)
+
+    @app.post("/api/metrics/record-security")
+    async def record_security_metrics(request: Request):
+        """API для записи метрик безопасности"""
+        try:
+            form_data = await request.form()
+            event_type = form_data.get("event_type", "")
+            ip_address = form_data.get("ip_address", "")
+            
+            if event_type == "failed_login":
+                metrics_collector.record_failed_login(ip_address)
+            elif event_type == "suspicious_activity":
+                metrics_collector.record_suspicious_activity()
+            elif event_type == "firewall_block":
+                metrics_collector.record_firewall_block()
+            
+            return JSONResponse(content={"success": True})
+        except Exception as e:
+            print(f"Ошибка при записи метрик безопасности: {e}")
+            return JSONResponse(content={"error": str(e)}, status_code=500)
+
+    # Кэш для предыдущих значений трафика
+    if not hasattr(app, 'adapters_traffic_cache'):
+        app.adapters_traffic_cache = {}
+        app.adapters_traffic_time = {}
+
+    @app.get("/api/adapters")
+    async def get_adapters():
+        stats = psutil.net_if_stats()
+        addrs = psutil.net_if_addrs()
+        io_counters = psutil.net_io_counters(pernic=True)
+
+        active = []
+        inactive = []
+
+        now = time.time()
+        prev_counters = app.adapters_traffic_cache
+        prev_time = app.adapters_traffic_time
+        app.adapters_traffic_cache = {}
+        app.adapters_traffic_time = {}
+
+        for name, stat in stats.items():
+            mac = "-"
+            ip = "-"
+            if name in addrs:
+                for addr in addrs[name]:
+                    if hasattr(psutil, 'AF_LINK') and addr.family == psutil.AF_LINK:
+                        mac = addr.address
+                    elif addr.family == 2:  # AF_INET
+                        ip = addr.address
+            speed = stat.speed if stat.speed > 0 else None
+            in_packets = io_counters[name].packets_recv if name in io_counters else None
+            out_packets = io_counters[name].packets_sent if name in io_counters else None
+            in_errors = io_counters[name].errin if name in io_counters else None
+            out_errors = io_counters[name].errout if name in io_counters else None
+            in_bytes = io_counters[name].bytes_recv if name in io_counters else 0
+            out_bytes = io_counters[name].bytes_sent if name in io_counters else 0
+
+            # --- расчёт текущей загрузки ---
+            prev = prev_counters.get(name)
+            prev_t = prev_time.get(name)
+            in_rate = out_rate = 0.0
+            if prev and prev_t:
+                dt = now - prev_t
+                if dt > 0:
+                    in_rate = (in_bytes - prev[0]) * 8 / dt / 1024 / 1024  # Мбит/с
+                    out_rate = (out_bytes - prev[1]) * 8 / dt / 1024 / 1024
+                    in_rate = max(in_rate, 0)
+                    out_rate = max(out_rate, 0)
+            # сохраняем текущие значения для следующего запроса
+            app.adapters_traffic_cache[name] = (in_bytes, out_bytes)
+            app.adapters_traffic_time[name] = now
+
+            adapter_info = {
+                "name": name,
+                "mac": mac,
+                "ip": ip,
+                "speed": speed,
+                "in_packets": in_packets,
+                "out_packets": out_packets,
+                "in_errors": in_errors,
+                "out_errors": out_errors,
+                "in_mbps": round(in_rate, 3),
+                "out_mbps": round(out_rate, 3),
+            }
+            if stat.isup:
+                active.append(adapter_info)
+            else:
+                inactive.append(adapter_info)
+
+        return {"active": active, "inactive": inactive}

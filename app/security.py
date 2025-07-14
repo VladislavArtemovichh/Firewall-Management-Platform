@@ -1,8 +1,10 @@
 import time
 import base64
+from typing import Optional
 from fastapi import Request
 from fastapi.responses import RedirectResponse
 from .models import login_attempts, MAX_LOGIN_ATTEMPTS, LOCKOUT_TIME, users
+from .metrics import metrics_collector
 
 def check_login_attempts(username: str, request: Request):
     """Проверяет количество попыток входа и блокирует при превышении лимита"""
@@ -29,9 +31,16 @@ def authenticate_user(username: str, password: str):
     """Аутентифицирует пользователя"""
     return username in users and users[username]["password"] == password
 
-def record_login_attempt(username: str):
+def record_login_attempt(username: str, ip_address: Optional[str] = None):
     """Записывает попытку входа"""
     login_attempts[username].append(time.time())
+    
+    # Записываем метрики безопасности
+    try:
+        if ip_address:
+            metrics_collector.record_failed_login(ip_address)
+    except Exception as e:
+        print(f"Ошибка при записи метрик безопасности: {e}")
 
 def clear_login_attempts(username: str):
     """Очищает попытки входа для пользователя"""

@@ -393,6 +393,9 @@
             <div class="nav-item admin-only" id="admin-settings" style="display: none;" onclick="window.location.href='/settings'">
                 <i class="fas fa-cog" style="margin-right: 8px;"></i> Управление пользователями
             </div>
+            <div class="nav-item admin-only" id="metrics-link" style="display: none;" onclick="window.location.href='/metrics'">
+                <i class="fas fa-chart-line"></i> Метрики системы
+            </div>
             <div class="nav-item" onclick="logout()" style="margin-top: auto; border-top: 1px solid rgba(255,255,255,0.1);">
                 <i class="fas fa-sign-out-alt"></i> Выйти
             </div>
@@ -438,10 +441,11 @@
                     </div>
                 </div>
                 
-                <div class="kpi-card card-primary">
+                <div class="kpi-card card-primary" id="response-time-card">
                     <div class="kpi-title">
                         <i class="fas fa-clock"></i> Среднее время ответа
                     </div>
+                    <div class="kpi-value" id="avg-response-time">--</div>
                 </div>
             </div>
             
@@ -483,9 +487,11 @@
             if (userRole === 'firewall-admin') {
                 document.getElementById('admin-settings').style.display = 'block';
                 document.getElementById('event-log').style.display = 'block';
+                document.getElementById('metrics-link').style.display = 'block';
             } else {
                 document.getElementById('admin-settings').style.display = 'none';
                 document.getElementById('event-log').style.display = 'none';
+                document.getElementById('metrics-link').style.display = 'none';
             }
         });
 
@@ -545,6 +551,23 @@
                     sidebar.classList.remove('show');
                 }
             }
+        });
+
+        async function updateAvgResponseTime() {
+            try {
+                const response = await fetch('/api/metrics/summary');
+                if (!response.ok) return;
+                const data = await response.json();
+                const avg = data?.application?.avg_response_time;
+                document.getElementById('avg-response-time').textContent =
+                    (typeof avg === 'number' && !isNaN(avg)) ? (avg.toFixed(2) + ' мс') : '--';
+            } catch (e) {
+                document.getElementById('avg-response-time').textContent = '--';
+            }
+        }
+        document.addEventListener('DOMContentLoaded', function() {
+            updateAvgResponseTime();
+            setInterval(updateAvgResponseTime, 5000);
         });
     </script>
 </body>
