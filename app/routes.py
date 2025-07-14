@@ -1,5 +1,5 @@
 from fastapi import FastAPI, Form, Request, HTTPException
-from fastapi.responses import RedirectResponse, FileResponse, JSONResponse
+from fastapi.responses import RedirectResponse, FileResponse, JSONResponse, Response
 from fastapi.templating import Jinja2Templates
 import asyncpg
 from db_config import DB_USER, DB_PASSWORD, DB_NAME, DB_HOST, DB_PORT
@@ -26,6 +26,7 @@ from .database import (
 )
 import datetime
 import re
+from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
 
 templates = Jinja2Templates(directory="templates")
 audit_log = []
@@ -532,3 +533,15 @@ def setup_routes(app: FastAPI):
     async def too_many_requests_handler(request: Request, exc: HTTPException):
         """Обработчик ошибки 429 (Too Many Requests)"""
         return RedirectResponse(url="/", status_code=303)
+
+    @app.get("/metrics")
+    async def metrics(request: Request):
+        """Метрики Prometheus (только для администратора)"""
+        username = request.cookies.get("username")
+        if not username or username not in users:
+            return RedirectResponse(url="/", status_code=303)
+        user_role = users[username]["role"].value
+        if user_role != "firewall-admin":
+            return RedirectResponse(url="/dashboard", status_code=303)
+        data = generate_latest()
+        return Response(content=data, media_type=CONTENT_TYPE_LATEST)
