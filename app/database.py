@@ -3,6 +3,8 @@ from contextlib import asynccontextmanager
 from db_config import DB_USER, DB_PASSWORD, DB_NAME, DB_HOST, DB_PORT
 from .models import users
 from datetime import datetime
+import subprocess
+import socket
 
 def convert_row_for_json(row_dict):
     """Преобразует datetime объекты и IP-адреса в строки для JSON сериализации"""
@@ -102,7 +104,12 @@ async def get_all_firewall_devices():
     )
     rows = await conn.fetch('SELECT * FROM firewall_devices ORDER BY id')
     await conn.close()
-    return [dict(row) for row in rows]
+    devices = [dict(row) for row in rows]
+    updated_devices = []
+    for device in devices:
+        updated_device = await update_device_status(device)
+        updated_devices.append(updated_device)
+    return updated_devices
 
 async def add_firewall_device(device):
     conn = await asyncpg.connect(
@@ -208,6 +215,7 @@ async def startup_event():
     
     # Создаём таблицу firewall-устройств
     await create_firewall_devices_table()
+    await create_device_configs_table()
     
     await conn.close()
     
@@ -625,3 +633,141 @@ async def get_audit_log():
     rows = await conn.fetch('SELECT * FROM audit_log ORDER BY time DESC LIMIT 100')
     await conn.close()
     return [dict(row) for row in rows] 
+
+async def check_device_online(ip, tcp_port=22):
+    if not ip:
+        print('IP is None')
+        return False
+    # Сначала пробуем ping
+    try:
+        result = subprocess.run(['ping', '-n', '1', str(ip)], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        print(f'Ping {ip} result: {result.returncode}, stdout: {result.stdout}, stderr: {result.stderr}')
+        if result.returncode == 0:
+            return True
+    except Exception as e:
+        print(f'Ping exception: {e}')
+    # Если ping не сработал — пробуем TCP connect
+    try:
+        with socket.create_connection((ip, tcp_port), timeout=2):
+            print(f'TCP connect to {ip}:{tcp_port} success')
+            return True
+    except Exception as e:
+        print(f'TCP connect to {ip}:{tcp_port} failed: {e}')
+    return False
+
+async def update_device_status(device):
+    online = await check_device_online(device.get('ip'))
+    status = "Онлайн" if online else "Оффлайн"
+    last_poll = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    conn = await asyncpg.connect(
+        user=DB_USER,
+        password=DB_PASSWORD,
+        database=DB_NAME,
+        host=DB_HOST,
+        port=DB_PORT
+    )
+    await conn.execute(
+        "UPDATE firewall_devices SET status=$1, last_poll=$2 WHERE id=$3",
+        status, last_poll, int(device['id'])
+    )
+    await conn.close()
+    device['status'] = status if status is not None else 'Неизвестно'
+    device['last_poll'] = last_poll if last_poll is not None else '-'
+    print('RETURN DEVICE:', device)
+    return device 
+
+async def create_device_configs_table():
+    conn = await asyncpg.connect(
+        user=DB_USER,
+        password=DB_PASSWORD,
+        database=DB_NAME,
+        host=DB_HOST,
+        port=DB_PORT
+    )
+    await conn.execute('''
+        CREATE TABLE IF NOT EXISTS device_configs (
+            id SERIAL PRIMARY KEY,
+            device_id INTEGER NOT NULL,
+            config TEXT NOT NULL,
+            updated_at TIMESTAMP DEFAULT NOW()
+        );
+    ''')
+    await conn.execute('''
+        CREATE TABLE IF NOT EXISTS device_config_backups (
+            id SERIAL PRIMARY KEY,
+            device_id INTEGER NOT NULL,
+            config TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT NOW()
+        );
+    ''')
+    await conn.execute('''
+        CREATE TABLE IF NOT EXISTS device_config_audit (
+            id SERIAL PRIMARY KEY,
+            device_id INTEGER NOT NULL,
+            username VARCHAR(64),
+            action VARCHAR(32),
+            details TEXT,
+            time TIMESTAMP DEFAULT NOW()
+        );
+    ''')
+    await conn.close()
+
+async def get_device_config(device_id):
+    conn = await asyncpg.connect(
+        user=DB_USER,
+        password=DB_PASSWORD,
+        database=DB_NAME,
+        host=DB_HOST,
+        port=DB_PORT
+    )
+    row = await conn.fetchrow('SELECT config FROM device_configs WHERE device_id=$1 ORDER BY updated_at DESC LIMIT 1', device_id)
+    await conn.close()
+    return row['config'] if row else ""
+
+async def save_device_config(device_id, config, username):
+    conn = await asyncpg.connect(
+        user=DB_USER,
+        password=DB_PASSWORD,
+        database=DB_NAME,
+        host=DB_HOST,
+        port=DB_PORT
+    )
+    await conn.execute('INSERT INTO device_configs (device_id, config) VALUES ($1, $2)', device_id, config)
+    await conn.execute('INSERT INTO device_config_audit (device_id, username, action, details) VALUES ($1, $2, $3, $4)', device_id, username, 'save', 'Сохранена новая конфигурация')
+    await conn.close()
+
+async def backup_device_config(device_id, config, username):
+    conn = await asyncpg.connect(
+        user=DB_USER,
+        password=DB_PASSWORD,
+        database=DB_NAME,
+        host=DB_HOST,
+        port=DB_PORT
+    )
+    await conn.execute('INSERT INTO device_config_backups (device_id, config) VALUES ($1, $2)', device_id, config)
+    await conn.execute('INSERT INTO device_config_audit (device_id, username, action, details) VALUES ($1, $2, $3, $4)', device_id, username, 'backup', 'Создана резервная копия')
+    await conn.close()
+
+async def get_device_config_backups(device_id):
+    conn = await asyncpg.connect(
+        user=DB_USER,
+        password=DB_PASSWORD,
+        database=DB_NAME,
+        host=DB_HOST,
+        port=DB_PORT
+    )
+    rows = await conn.fetch('SELECT id, created_at FROM device_config_backups WHERE device_id=$1 ORDER BY created_at DESC', device_id)
+    await conn.close()
+    return [{"id": r["id"], "created_at": r["created_at"]} for r in rows]
+
+async def get_device_config_audit(device_id):
+    conn = await asyncpg.connect(
+        user=DB_USER,
+        password=DB_PASSWORD,
+        database=DB_NAME,
+        host=DB_HOST,
+        port=DB_PORT
+    )
+    rows = await conn.fetch('SELECT username, action, time, details FROM device_config_audit WHERE device_id=$1 ORDER BY time DESC', device_id)
+    await conn.close()
+    return [{"username": r["username"], "action": r["action"], "time": r["time"], "details": r["details"]} for r in rows] 

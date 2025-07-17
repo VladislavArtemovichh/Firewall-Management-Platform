@@ -368,6 +368,7 @@
                     </table>
                 </div>
             </div>
+            {% if user_role == 'admin' or user_role == 'firewall-admin' %}
             <div style="margin-top: 24px;">
                 <b>История изменений (audit trail):</b>
                 <table class="connections-table" style="margin-top:8px;">
@@ -375,6 +376,7 @@
                     <tbody id="audit-log-list"><tr><td colspan="4" style="text-align:center; color:#888;">Нет данных</td></tr></tbody>
                 </table>
             </div>
+            {% endif %}
         </div>
         <!-- Интерфейс для отправки команд/скриптов -->
         <div class="tab-panel">
@@ -469,13 +471,12 @@
             }
             tbody.innerHTML = '';
             for (const dev of data) {
-                const statusClass = dev.status === 'online' ? 'color: #38a169;' : 'color: #e53e3e;';
-                const statusText = dev.status === 'online' ? 'Онлайн' : 'Оффлайн';
+                const statusClass = dev.status === 'Онлайн' ? 'color: #38a169;' : 'color: #e53e3e;';
                 tbody.innerHTML += `<tr>
                     <td>${dev.name || '-'}</td>
                     <td>${dev.ip || '-'}</td>
-                    <td>${dev.device_type || '-'}</td>
-                    <td style="${statusClass}">${statusText}</td>
+                    <td>${dev.device_type || dev.type || '-'}</td>
+                    <td style="${statusClass}">${dev.status || '-'}</td>
                     <td>${dev.last_poll || '-'}</td>
                     <td>
                         <button onclick="showDeviceConnections('${dev.id}', '${dev.name}')" class="action-button primary">Мониторинг</button>
@@ -844,49 +845,175 @@
     }
 
     // --- Централизованное управление конфигами ---
-    async function loadDeviceConfigs() {
-        // TODO: Загрузить конфиг выбранного устройства через API
+    async function loadConfigDevicesList() {
         const select = document.getElementById('config-device-select');
-        const selected = select.value;
-        if (!selected) {
+        try {
+            const resp = await fetch('/api/firewall_devices');
+            const data = await resp.json();
+            select.innerHTML = '<option value="">-- Выберите устройство --</option>';
+            for (const dev of data) {
+                select.innerHTML += `<option value="${dev.id}">${dev.name || dev.ip || dev.id}</option>`;
+            }
+            // Если есть хотя бы одно устройство — выбрать первое и загрузить данные
+            if (data.length > 0) {
+                select.value = data[0].id;
+                loadDeviceConfigs();
+            }
+        } catch (e) {
+            select.innerHTML = '<option value="">Ошибка загрузки</option>';
+        }
+    }
+
+    async function loadDeviceConfigs() {
+        const select = document.getElementById('config-device-select');
+        const deviceId = select.value;
+        if (!deviceId) {
             alert('Выберите устройство');
             return;
         }
-        // Пример запроса (реализовать API):
-        // const resp = await fetch(`/api/device_configs?id=${selected}`);
-        // const data = await resp.json();
-        // document.getElementById('device-config-editor').value = data.config || '';
-        document.getElementById('device-config-editor').value = '# Здесь будет конфигурация устройства';
+        try {
+            const resp = await fetch(`/api/device_config?device_id=${deviceId}`);
+            const data = await resp.json();
+            document.getElementById('device-config-editor').value = data.config || '';
+            loadBackups();
+            loadAuditLog();
+        } catch (e) {
+            document.getElementById('device-config-editor').value = '# Ошибка загрузки конфига';
+        }
     }
+
     async function saveDeviceConfig() {
-        // TODO: Сохранить конфиг через API
-        alert('Функция сохранения конфига будет реализована');
+        const select = document.getElementById('config-device-select');
+        const deviceId = select.value;
+        const config = document.getElementById('device-config-editor').value;
+        // username берём из глобальной переменной или user_role, если есть
+        let username = window.currentUsername || '';
+        if (!username && typeof user_role !== 'undefined') {
+            username = user_role;
+        }
+        if (!username) {
+            username = 'admin';
+        }
+        if (!deviceId) {
+            alert('Выберите устройство');
+            return;
+        }
+        try {
+            const resp = await fetch(`/api/device_config?device_id=${deviceId}`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({config, username})
+            });
+            if (resp.ok) {
+                alert('Конфигурация сохранена');
+                loadAuditLog();
+            } else {
+                const err = await resp.text();
+                alert('Ошибка при сохранении: ' + err);
+            }
+        } catch (e) {
+            alert('Ошибка при сохранении: ' + e.message);
+        }
     }
+
     async function pushConfigToDevices() {
         // TODO: Массовое применение конфига через API
         alert('Массовое применение конфига будет реализовано');
     }
+
     async function backupDeviceConfig() {
-        // TODO: Сделать резервную копию через API
-        alert('Создание резервной копии будет реализовано');
-    }
-    async function loadBackups() {
-        // TODO: Загрузить список резервных копий через API
-        document.getElementById('backup-list').innerHTML = '<tr><td colspan="2" style="text-align:center; color:#888;">Нет данных</td></tr>';
-    }
-    async function loadAuditLog() {
-        // TODO: Загрузить историю изменений через API
-        document.getElementById('audit-log-list').innerHTML = '<tr><td colspan="4" style="text-align:center; color:#888;">Нет данных</td></tr>';
-    }
-    async function loadConfigDevicesList() {
-        // TODO: Загрузить список устройств через API
         const select = document.getElementById('config-device-select');
-        select.innerHTML = '<option value="">-- Выберите устройство --</option><option value="1">Пример устройства 1</option><option value="2">Пример устройства 2</option>';
+        const deviceId = select.value;
+        const config = document.getElementById('device-config-editor').value;
+        const username = window.currentUsername || 'admin';
+        if (!deviceId) {
+            alert('Выберите устройство');
+            return;
+        }
+        try {
+            const resp = await fetch(`/api/device_config_backup?device_id=${deviceId}`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({config, username})
+            });
+            if (resp.ok) {
+                alert('Резервная копия создана');
+                loadBackups();
+                loadAuditLog();
+            } else {
+                alert('Ошибка при создании копии');
+            }
+        } catch (e) {
+            alert('Ошибка при создании копии: ' + e.message);
+        }
+    }
+
+    async function loadBackups() {
+        const select = document.getElementById('config-device-select');
+        const deviceId = select.value;
+        const tbody = document.getElementById('backup-list');
+        if (!deviceId) {
+            tbody.innerHTML = '<tr><td colspan="2" style="text-align:center; color:#888;">Нет данных</td></tr>';
+            return;
+        }
+        try {
+            const resp = await fetch(`/api/device_config_backups?device_id=${deviceId}`);
+            const data = await resp.json();
+            if (!Array.isArray(data) || data.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="2" style="text-align:center; color:#888;">Нет данных</td></tr>';
+                return;
+            }
+            tbody.innerHTML = '';
+            for (const b of data) {
+                tbody.innerHTML += `<tr><td>${b.created_at}</td><td>—</td></tr>`;
+            }
+        } catch (e) {
+            tbody.innerHTML = '<tr><td colspan="2" style="text-align:center; color:#888;">Ошибка загрузки</td></tr>';
+        }
+    }
+
+    async function loadAuditLog() {
+        const select = document.getElementById('config-device-select');
+        const deviceId = select.value;
+        const tbody = document.getElementById('audit-log-list');
+        if (!deviceId) {
+            tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; color:#888;">Нет данных</td></tr>';
+            return;
+        }
+        try {
+            const resp = await fetch(`/api/device_config_audit?device_id=${deviceId}`);
+            const data = await resp.json();
+            if (!Array.isArray(data) || data.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; color:#888;">Нет данных</td></tr>';
+                return;
+            }
+            tbody.innerHTML = '';
+            for (const row of data) {
+                tbody.innerHTML += `<tr><td>${row.username || '-'}</td><td>${row.action || '-'}</td><td>${row.time || '-'}</td><td>${row.details || '-'}</td></tr>`;
+            }
+        } catch (e) {
+            tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; color:#888;">Ошибка загрузки</td></tr>';
+        }
     }
 
     // --- CLI-команды ---
+    async function loadCliDevicesList() {
+        const select = document.getElementById('cli-device-select');
+        try {
+            const resp = await fetch('/api/firewall_devices');
+            const data = await resp.json();
+            select.innerHTML = '<option value="">-- Выберите устройство --</option>';
+            for (const dev of data) {
+                select.innerHTML += `<option value="${dev.id}">${dev.name || dev.ip || dev.id}</option>`;
+            }
+        } catch (e) {
+            select.innerHTML = '<option value="">Ошибка загрузки</option>';
+        }
+    }
+
     async function sendCliCommand() {
-        const deviceId = document.getElementById('cli-device-select').value;
+        const select = document.getElementById('cli-device-select');
+        const deviceId = select.value;
         const command = document.getElementById('cli-command-input').value;
         const resultDiv = document.getElementById('cli-command-result');
         if (!deviceId) {
@@ -898,10 +1025,23 @@
             return;
         }
         resultDiv.textContent = 'Выполнение...';
-        // TODO: Реализовать реальный запрос к backend
-        setTimeout(() => {
-            resultDiv.textContent = 'Результат выполнения команды\n---\n' + command + '\n(пример вывода)';
-        }, 1000);
+        try {
+            const resp = await fetch(`/api/device_cli_command?device_id=${deviceId}`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({command})
+            });
+            const data = await resp.json();
+            if (data.result !== undefined) {
+                resultDiv.textContent = data.result;
+            } else if (data.error) {
+                resultDiv.textContent = 'Ошибка: ' + data.error;
+            } else {
+                resultDiv.textContent = 'Неизвестный ответ';
+            }
+        } catch (e) {
+            resultDiv.textContent = 'Ошибка: ' + e.message;
+        }
     }
 
     window.addEventListener('DOMContentLoaded', function() {
@@ -923,7 +1063,16 @@
             block.classList.remove('open');
         });
         // Загружаем список устройств при открытии вкладки управления (теперь индекс 1)
+        loadConfigDevicesList();
         document.querySelectorAll('.tab-item')[1].addEventListener('click', loadConfigDevicesList);
+        loadCliDevicesList();
+
+        const select = document.getElementById('config-device-select');
+        if (select) {
+            select.addEventListener('change', function() {
+                loadDeviceConfigs();
+            });
+        }
     });
 
     // Сворачивание/разворачивание адаптеров
