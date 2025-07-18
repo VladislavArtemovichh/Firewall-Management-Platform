@@ -276,6 +276,101 @@
             border-color: #4a7dff;
             box-shadow: 0 0 0 2px rgba(74,125,255,0.12);
         }
+        /* Мини-вкладки в модальном окне */
+        .device-modal-tabs {
+            display: flex;
+            gap: 0;
+            margin-bottom: 18px;
+            border-bottom: 2px solid #e0e7ef;
+        }
+        .device-modal-tab {
+            padding: 10px 24px;
+            cursor: pointer;
+            background: none;
+            border: none;
+            border-radius: 8px 8px 0 0;
+            font-size: 1.05rem;
+            color: #1a3a5f;
+            font-weight: 500;
+            margin-right: 2px;
+            transition: background 0.18s, color 0.18s;
+            outline: none;
+        }
+        .device-modal-tab.active {
+            background: #f7fafc;
+            color: #2c5282;
+            border-bottom: 2px solid #4a7dff;
+            font-weight: bold;
+        }
+        .device-modal-tab:not(.active):hover {
+            background: #e0e7ef;
+        }
+        .device-modal-tab-content { display: none; }
+        .device-modal-tab-content.active { display: block; }
+        /* Терминальный стиль для CLI-команд в стиле сайта */
+        .terminal-container {
+            background: #f7fafc;
+            border-radius: 8px;
+            padding: 16px;
+            font-family: 'Courier New', monospace;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            border: 1px solid #bfc9db;
+        }
+        .terminal-input-wrapper {
+            display: flex;
+            align-items: center;
+            background: #f7fafc;
+            border: none;
+            outline: none;
+        }
+        .terminal-prompt {
+            color: #4a7dff;
+            font-weight: bold;
+            margin-right: 8px;
+            user-select: none;
+        }
+        .terminal-input {
+            background: transparent;
+            border: none;
+            outline: none;
+            color: #1a3a5f;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            flex-grow: 1;
+            caret-color: #4a7dff;
+        }
+        .terminal-input::placeholder {
+            color: #888;
+        }
+        .terminal-result {
+            background: #f7fafc;
+            border-radius: 8px;
+            padding: 16px;
+            color: #1a3a5f;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            white-space: pre-wrap;
+            border: 1px solid #bfc9db;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            margin-top: 16px;
+            min-height: 40px;
+        }
+        .terminal-button {
+            background: #4a7dff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 8px 16px;
+            font-family: 'Courier New', monospace;
+            font-weight: bold;
+            cursor: pointer;
+            margin-top: 12px;
+            transition: all 0.2s;
+        }
+        .terminal-button:hover {
+            background: #3a6de8;
+            box-shadow: 0 2px 8px rgba(74,125,255,0.3);
+        }
     </style>
 </head>
 <body>
@@ -286,7 +381,7 @@
             <button class="tab-item" onclick="showTab(1)"><i class="fas fa-cogs"></i> Централизованное управление</button>
             <button class="tab-item" onclick="showTab(2)"><i class="fas fa-terminal"></i> Интерфейс команд</button>
             <button class="tab-item" onclick="showTab(3)"><i class="fas fa-chart-line"></i> Мониторинг полосы пропускания</button>
-            <button class="tab-item" onclick="showTab(4)"><i class="fas fa-network-wired"></i> Информация об адаптерах</button>
+            <button class="tab-item" onclick="showTab(4)"><i class="fas fa-network-wired"></i> Информация об сетевых интерфейсах</button>
         </div>
         <button class="back-btn" onclick="window.location.href='/dashboard'">
             <i class="fas fa-arrow-left"></i> Назад
@@ -324,6 +419,9 @@
                     <option value="mikrotik_routeros">Mikrotik RouterOS</option>
                     <option value="fortinet">Fortinet</option>
                     <option value="palo_alto">Palo Alto</option>
+                    <option value="openwrt">OpenWRT</option>
+                    <option value="linux">Linux (SSH)</option>
+                    <option value="snmp">SNMP</option>
                 </select>
                 <input type="text" id="new-device-username" placeholder="Логин" style="margin-right:8px; padding: 6px 8px; border: 1px solid #ddd; border-radius: 4px;" {% if is_readonly %}disabled{% endif %}>
                 <input type="password" id="new-device-password" placeholder="Пароль" style="margin-right:8px; padding: 6px 8px; border: 1px solid #ddd; border-radius: 4px;" {% if is_readonly %}disabled{% endif %}>
@@ -333,8 +431,11 @@
                 {% endif %}
             </div>
             <div id="device-connections-modal" style="display:none; position:fixed; top:10%; left:50%; transform:translateX(-50%); background:#fff; border-radius:8px; box-shadow:0 2px 12px #0002; padding:24px; z-index:1000; max-width: 90%; max-height: 80%; overflow-y: auto;">
-                <h3>Соединения устройства <span id="modal-device-name"></span></h3>
-                <div id="modal-connections-table"></div>
+                <h3>Мониторинг устройства <span id="modal-device-name"></span></h3>
+                <div class="device-modal-tabs">
+                    <button class="device-modal-tab active" id="tab-connections" onclick="switchDeviceModalTab('connections')">Активные соединения</button>
+                </div>
+                <div id="modal-connections-table" class="device-modal-tab-content active"></div>
                 <button onclick="closeConnectionsModal()" style="margin-top:12px; padding: 6px 12px; background-color: #4a7dff; color: white; border: none; border-radius: 4px; cursor: pointer;">Закрыть</button>
             </div>
         </div>
@@ -385,54 +486,53 @@
                 <label for="cli-device-select"><b>Устройство:</b></label>
                 <select id="cli-device-select" style="min-width: 180px; padding: 8px; border-radius: 6px; border: 1px solid #bfc9db; margin-left: 8px;" {% if is_readonly %}disabled{% endif %}>
                     <option value="">-- Выберите устройство --</option>
-                    <option value="1">Пример устройства 1</option>
-                    <option value="2">Пример устройства 2</option>
                 </select>
             </div>
-            <div style="margin-bottom: 18px;">
-                <label for="cli-command-input"><b>CLI-команда или скрипт:</b></label><br>
-                <textarea id="cli-command-input" style="width: 100%; min-height: 80px; margin-top: 8px; border-radius: 6px; border: 1.5px solid #bfc9db; padding: 10px; font-family: monospace;" {% if is_readonly %}readonly{% endif %}></textarea>
+            <div class="terminal-container">
+                <div class="terminal-input-wrapper">
+                    <span class="terminal-prompt">$</span>
+                    <input type="text" id="cli-command-input" class="terminal-input" placeholder="Введите команду..." {% if is_readonly %}readonly{% endif %}>
+                </div>
+                <button onclick="sendCliCommand()" class="terminal-button" {% if is_readonly %}disabled{% endif %}>Выполнить</button>
             </div>
-            <button onclick="sendCliCommand()" class="action-button primary" {% if is_readonly %}disabled{% endif %}>Выполнить</button>
-            <div id="cli-command-result" style="margin-top: 24px; background: #f7fafc; border-radius: 8px; padding: 16px; min-height: 40px; color: #1a3a5f; font-family: monospace;"></div>
+            <div id="cli-command-result" class="terminal-result"></div>
         </div>
         <!-- Мониторинг полосы пропускания -->
         <div class="tab-panel">
             <h2>Мониторинг полосы пропускания</h2>
-            <div class="device-monitor-form" style="margin-bottom: 24px;">
-                <input type="text" id="device-ip" placeholder="IP устройства" style="margin-right:8px;">
-                <input type="text" id="device-username" placeholder="Логин" style="margin-right:8px;">
-                <input type="password" id="device-password" placeholder="Пароль" style="margin-right:8px;">
-                <select id="device-type" style="margin-right:8px;">
-                    <option value="cisco_ios">Cisco IOS</option>
-                    <option value="mikrotik_routeros">Mikrotik</option>
-                    <!-- другие типы -->
-                </select>
-                <button onclick="loadDeviceBandwidth()">Мониторить устройство</button>
+            
+            <div style="background: #f7fafc; padding: 16px; border-radius: 8px; border: 1px solid #e2e8f0;">
+                <h3 style="margin-top: 0; color: #4a5568;">Выберите устройство для мониторинга:</h3>
+                
+                <div style="margin-bottom: 16px;">
+                    <label for="bandwidth-device-select" style="display: block; margin-bottom: 8px; font-weight: bold;">Устройство:</label>
+                    <select id="bandwidth-device-select" style="width: 100%; padding: 8px; border: 1px solid #e2e8f0; border-radius: 4px;">
+                        <option value="">-- Выберите устройство --</option>
+                    </select>
+                </div>
+                
+                <div style="margin-bottom: 16px;">
+                    <button onclick="showBandwidthConnections()" class="action-button primary">
+                        <i class="fas fa-chart-line"></i> Показать соединения
+                    </button>
+                </div>
+                
+                <div id="bandwidth-output-container" style="display: none;">
+                    <h4 style="margin-top: 0; color: #4a5568;">Содержимое /proc/net/nf_conntrack:</h4>
+                    <div id="bandwidth-output" style="background: #1a202c; color: #e2e8f0; padding: 12px; border-radius: 4px; font-family: 'Courier New', monospace; font-size: 12px; max-height: 400px; overflow-y: auto; white-space: pre-wrap; border: 1px solid #2d3748;">
+                        <div style="text-align:center; color:#888;">Выберите устройство и нажмите "Показать соединения"...</div>
+                    </div>
+                </div>
             </div>
-            <div id="device-bandwidth-result"></div>
-            <div class="bandwidth-chart-container">
-                <canvas id="bandwidthChart" width="600" height="250"></canvas>
-            </div>
-            <table class="connections-table">
-                <thead>
-                    <tr>
-                        <th>Процесс</th>
-                        <th>Подключения</th>
-                        <th>Входящий трафик</th>
-                        <th>Исходящий трафик</th>
-                    </tr>
-                </thead>
-                <tbody id="bandwidth-table-body">
-                    <tr><td colspan="4" style="text-align:center;">Загрузка...</td></tr>
-                </tbody>
-            </table>
         </div>
-        <!-- Информация об адаптерах -->
+        <!-- Информация об сетевых интерфейсах -->
         <div class="tab-panel">
-            <h2>Информация об адаптерах</h2>
-            <div id="adapters-list">
-                <div style="text-align:center; color:#888;">Загрузка...</div>
+            <h2>Информация о сетевых интерфейсах</h2>
+            <div id="adapters-list-wrapper">
+                <button onclick="loadAdapters()" class="action-button primary" style="margin-bottom: 16px;">Обновить адаптеры</button>
+                <div id="adapters-list">
+                    <div style="text-align:center; color:#888;">Загрузка...</div>
+                </div>
             </div>
         </div>
     </div>
@@ -453,18 +553,40 @@
         });
         // Сохраняем выбранную вкладку
         localStorage.setItem('firewall_selected_tab', idx);
+        // Если это вкладка CLI-команд (индекс 2), обновляем список устройств
+        if (idx === 2) loadCliDevicesList();
+        // Если это вкладка мониторинга полосы пропускания (индекс 3), загружаем список устройств
+        if (idx === 3) {
+            loadBandwidthDevicesList();
+        }
+    }
+
+    // --- Кэш устройств firewall ---
+    window.firewallDevicesCache = null;
+    async function getFirewallDevicesCached(forceReload = false) {
+        if (!forceReload && window.firewallDevicesCache !== null) {
+            return window.firewallDevicesCache;
+        }
+        try {
+            const resp = await fetch('/api/firewall_devices');
+            const data = await resp.json();
+            window.firewallDevicesCache = data;
+            return data;
+        } catch (e) {
+            window.firewallDevicesCache = [];
+            return [];
+        }
     }
 
     // Загрузка списка firewall-устройств
     let devicesFirstLoad = true;
-    async function loadFirewallDevices() {
+    async function loadFirewallDevices(forceReload = false) {
         const tbody = document.getElementById('firewall-devices-table');
         if (devicesFirstLoad) {
             tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;">Загрузка...</td></tr>';
         }
         try {
-            const resp = await fetch('/api/firewall_devices');
-            const data = await resp.json();
+            const data = await getFirewallDevicesCached(forceReload);
             if (!Array.isArray(data) || data.length === 0) {
                 tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;">Нет устройств</td></tr>';
                 return;
@@ -528,6 +650,11 @@
             if (resp.ok) {
                 hideAddDeviceForm();
                 loadFirewallDevices();
+                // Обновляем список устройств если мы на вкладке мониторинга
+                const activeTab = document.querySelector('.tab-panel.active');
+                if (activeTab && activeTab.querySelector('#bandwidth-device-select')) {
+                    loadBandwidthDevicesList();
+                }
                 alert('Устройство успешно добавлено');
             } else {
                 const error = await resp.text();
@@ -545,6 +672,11 @@
             const resp = await fetch(`/api/firewall_devices/${id}`, {method: 'DELETE'});
             if (resp.ok) {
                 loadFirewallDevices();
+                // Обновляем список устройств если мы на вкладке мониторинга
+                const activeTab = document.querySelector('.tab-panel.active');
+                if (activeTab && activeTab.querySelector('#bandwidth-device-select')) {
+                    loadBandwidthDevicesList();
+                }
                 alert('Устройство удалено');
             } else {
                 const error = await resp.text();
@@ -555,99 +687,229 @@
         }
     }
 
-    // Показать соединения устройства
-    async function showDeviceConnections(id, name) {
+    // --- Автообновление мониторинга устройства ---
+    let monitoringInterval = null;
+    function showDeviceConnections(id, name) {
         document.getElementById('modal-device-name').textContent = name;
         document.getElementById('device-connections-modal').style.display = 'block';
         const tableDiv = document.getElementById('modal-connections-table');
         tableDiv.innerHTML = 'Загрузка...';
+        
+        // Функция для загрузки данных
+        async function loadAll() {
+            try {
+                // Сначала пробуем получить данные о трафике (nf_conntrack)
+                let resp = await fetch(`/api/device_traffic?device_id=${id}`);
+                let data = await resp.json();
+                
+                if (Array.isArray(data) && data.length > 0) {
+                    // Показываем данные о трафике по процессам
+                    let html = '<h4 style="margin-top: 0; color: #4a7dff;">Трафик по процессам (nf_conntrack):</h4>';
+                    html += '<table class="connections-table"><thead><tr>' +
+                        '<th>Процесс</th><th>Подключения</th><th>Входящий трафик</th><th>Исходящий трафик</th><th>Протоколы</th><th>Удалённые IP</th>' +
+                        '</tr></thead><tbody>';
+                    
+                    for (const row of data) {
+                        const formatBytes = (bytes) => {
+                            if (bytes === 0 || bytes === undefined) return '-';
+                            if (bytes < 1024) return bytes + ' B';
+                            if (bytes < 1024*1024) return (bytes/1024).toFixed(1) + ' KB';
+                            return (bytes/(1024*1024)).toFixed(1) + ' MB';
+                        };
+                        
+                        const protocols = row.protocols ? (Array.isArray(row.protocols) ? row.protocols.join(', ') : row.protocols) : '-';
+                        const remoteIps = row.remote_ips_count !== undefined ? row.remote_ips_count : '-';
+                        
+                        html += `<tr>
+                            <td>${row.process || '-'}</td>
+                            <td>${row.connections || '-'}</td>
+                            <td>${formatBytes(row.in_traffic)}</td>
+                            <td>${formatBytes(row.out_traffic)}</td>
+                            <td>${protocols}</td>
+                            <td>${remoteIps}</td>
+                        </tr>`;
+                    }
+                    
+                    html += '</tbody></table>';
+                    
+                    // Добавляем разделитель
+                    html += '<hr style="margin: 20px 0; border: none; border-top: 1px solid #e2e8f0;">';
+                    
+                    // Теперь получаем детальные соединения
+                    resp = await fetch(`/api/firewall_connections?device_id=${id}`);
+                    data = await resp.json();
+                    
+                    if (Array.isArray(data) && data.length > 0) {
+                        html += '<h4 style="margin-top: 0; color: #38a169;">Детальные соединения:</h4>';
+                        html += '<table class="connections-table"><thead><tr>' +
+                            '<th>Интерфейс</th><th>Протокол</th><th>Локальный адрес</th><th>Локальный порт</th><th>Удалённый адрес</th><th>Удалённый порт</th><th>Статус</th><th>Процесс</th><th>Входящие пакеты</th><th>Входящие байты</th><th>Исходящие пакеты</th><th>Исходящие байты</th><th>Общий трафик</th>' +
+                            '</tr></thead><tbody>';
+                        
+                        for (const conn of data) {
+                            const formatBytes = (bytes) => {
+                                if (bytes === 0 || bytes === undefined) return '-';
+                                if (bytes < 1024) return bytes + ' B';
+                                if (bytes < 1024*1024) return (bytes/1024).toFixed(1) + ' KB';
+                                return (bytes/(1024*1024)).toFixed(1) + ' MB';
+                            };
+                            
+                            html += `<tr>
+                                <td>${conn.interface || '-'}</td>
+                                <td>${conn.protocol || '-'}</td>
+                                <td>${conn.local_address || '-'}</td>
+                                <td>${conn.local_port || '-'}</td>
+                                <td>${conn.remote_address || '-'}</td>
+                                <td>${conn.remote_port || '-'}</td>
+                                <td>${conn.status || '-'}</td>
+                                <td>${conn.process || '-'}</td>
+                                <td>${conn.packets_in || '-'}</td>
+                                <td>${formatBytes(conn.bytes_in)}</td>
+                                <td>${conn.packets_out || '-'}</td>
+                                <td>${formatBytes(conn.bytes_out)}</td>
+                                <td>${formatBytes(conn.total_traffic)}</td>
+                            </tr>`;
+                        }
+                        
+                        html += '</tbody></table>';
+                    } else {
+                        html += '<div style="text-align:center; color:#888;">Нет данных о соединениях</div>';
+                    }
+                    
+                    tableDiv.innerHTML = html;
+                } else {
+                    // Fallback к обычным соединениям
+                    resp = await fetch(`/api/firewall_connections?device_id=${id}`);
+                    data = await resp.json();
+                    
+                    if (!Array.isArray(data) || data.length === 0) {
+                        tableDiv.innerHTML = '<p style="text-align:center; color:#888;">Нет соединений</p>';
+                        return;
+                    }
+                    
+                    let html = '<table class="connections-table"><thead><tr><th>Интерфейс</th><th>Протокол</th><th>Локальный адрес</th><th>Локальный порт</th><th>Удалённый адрес</th><th>Удалённый порт</th><th>Статус</th><th>Процесс</th><th>Входящий трафик</th><th>Исходящий трафик</th><th>Общий трафик</th></tr></thead><tbody>';
+                    for (const conn of data) {
+                        const formatBytes = (bytes) => {
+                            if (bytes === 0 || bytes === undefined) return '-';
+                            if (bytes < 1024) return bytes + ' B';
+                            if (bytes < 1024*1024) return (bytes/1024).toFixed(1) + ' KB';
+                            return (bytes/(1024*1024)).toFixed(1) + ' MB';
+                        };
+                        
+                        html += `<tr>
+                            <td>${conn.interface || '-'}</td>
+                            <td>${conn.protocol || '-'}</td>
+                            <td>${conn.local_address || '-'}</td>
+                            <td>${conn.local_port || '-'}</td>
+                            <td>${conn.remote_address || '-'}</td>
+                            <td>${conn.remote_port || '-'}</td>
+                            <td>${conn.status || '-'}</td>
+                            <td>${conn.process || '-'}</td>
+                            <td>${formatBytes(conn.bytes_in)} (${conn.packets_in || 0} пак.)</td>
+                            <td>${formatBytes(conn.bytes_out)} (${conn.packets_out || 0} пак.)</td>
+                            <td>${formatBytes(conn.total_traffic)}</td>
+                        </tr>`;
+                    }
+                    html += '</tbody></table>';
+                    tableDiv.innerHTML = html;
+                }
+            } catch (e) {
+                tableDiv.innerHTML = '<p style="text-align:center; color:#e53e3e;">Ошибка загрузки соединений: ' + e.message + '</p>';
+            }
+        }
+        // Сразу загружаем и убираем автообновление
+        loadAll();
+        if (monitoringInterval) clearInterval(monitoringInterval);
+        // monitoringInterval = setInterval(loadAll, 5000); // автообновление отключено
+    }
+    function closeConnectionsModal() {
+        document.getElementById('device-connections-modal').style.display = 'none';
+        if (monitoringInterval) clearInterval(monitoringInterval);
+    }
+
+    async function loadDeviceInterfaces(id) {
+        const ifaceDiv = document.getElementById('modal-interfaces-table');
+        ifaceDiv.innerHTML = 'Загрузка интерфейсов...';
         try {
-            const resp = await fetch(`/api/firewall_connections?device_id=${id}`);
+            const resp = await fetch(`/api/device_interfaces?device_id=${id}`);
             const data = await resp.json();
             if (!Array.isArray(data) || data.length === 0) {
-                tableDiv.innerHTML = '<p style="text-align:center; color:#888;">Нет соединений</p>';
+                ifaceDiv.innerHTML = '<p style="text-align:center; color:#888;">Нет данных по интерфейсам</p>';
                 return;
             }
-            let html = '<table class="connections-table"><thead><tr><th>Интерфейс</th><th>Протокол</th><th>Локальный адрес</th><th>Локальный порт</th><th>Удалённый адрес</th><th>Удалённый порт</th><th>Статус</th></tr></thead><tbody>';
-            for (const conn of data) {
+            let html = '<table class="connections-table"><thead><tr><th>Интерфейс</th><th>MAC</th><th>Статус</th><th>Входящий трафик (in_octets)</th><th>Исходящий трафик (out_octets)</th></tr></thead><tbody>';
+            for (const iface of data) {
                 html += `<tr>
-                    <td>${conn.interface || '-'}</td>
-                    <td>${conn.protocol || '-'}</td>
-                    <td>${conn.local_address || '-'}</td>
-                    <td>${conn.local_port || '-'}</td>
-                    <td>${conn.remote_address || '-'}</td>
-                    <td>${conn.remote_port || '-'}</td>
-                    <td>${conn.status || '-'}</td>
+                    <td>${iface.interface || '-'}</td>
+                    <td>${iface.mac || '-'}</td>
+                    <td>${iface.status || '-'}</td>
+                    <td>${iface.in_octets || '-'}</td>
+                    <td>${iface.out_octets || '-'}</td>
                 </tr>`;
             }
             html += '</tbody></table>';
-            tableDiv.innerHTML = html;
+            ifaceDiv.innerHTML = html;
         } catch (e) {
-            tableDiv.innerHTML = '<p style="text-align:center; color:#e53e3e;">Ошибка загрузки соединений: ' + e.message + '</p>';
+            ifaceDiv.innerHTML = '<p style="text-align:center; color:#e53e3e;">Ошибка загрузки интерфейсов: ' + e.message + '</p>';
         }
     }
     
-    function closeConnectionsModal() {
-        document.getElementById('device-connections-modal').style.display = 'none';
-    }
-    
-    // Закрытие модального окна при клике вне его области
-    document.addEventListener('click', function(event) {
-        const modal = document.getElementById('device-connections-modal');
-        if (event.target === modal) {
-            closeConnectionsModal();
+    function switchDeviceModalTab(tab) {
+        // Упрощенная функция, так как осталась только одна вкладка
+        if (tab === 'connections') {
+            document.getElementById('tab-connections').classList.add('active');
+            document.getElementById('modal-connections-table').classList.add('active');
         }
-    });
+    }
 
-    // Динамическая загрузка информации об адаптерах
-    let adaptersFirstLoad = true;
-    async function loadAdapters() {
+    // Динамическая загрузка информации об сетевых интерфейсах
+    let interfacesFirstLoad = true;
+    async function loadInterfaces() {
         const container = document.getElementById('adapters-list');
-        // Сохраняем раскрытые адаптеры по MAC-адресу
+        // Сохраняем раскрытые интерфейсы по MAC-адресу
         const openedMacs = Array.from(container.querySelectorAll('.adapter-info.open[data-mac]')).map(e => e.getAttribute('data-mac'));
-        if (adaptersFirstLoad) {
+        if (interfacesFirstLoad) {
             container.innerHTML = '<div style="text-align:center; color:#888;">Загрузка...</div>';
         }
         try {
             const resp = await fetch('/api/adapters');
             const data = await resp.json();
             if (!data || (!Array.isArray(data.active) && !Array.isArray(data.inactive))) {
-                container.innerHTML = '<div style="text-align:center; color:#888;">Нет данных об адаптерах</div>';
-                adaptersFirstLoad = false;
+                container.innerHTML = '<div style="text-align:center; color:#888;">Нет данных об интерфейсах</div>';
+                interfacesFirstLoad = false;
                 return;
             }
             let html = '';
             function isOpen(mac) {
                 return openedMacs.includes(mac);
             }
-            function adapterBlock(adapter, status, smartStatus) {
+            function interfaceBlock(interface, status, smartStatus) {
                 return `
-                <div class="adapter-info${isOpen(adapter.mac) ? ' open' : ''}" data-mac="${adapter.mac}">
+                <div class="adapter-info${isOpen(interface.mac) ? ' open' : ''}" data-mac="${interface.mac}">
                     <div class="adapter-title">
-                        ${adapter.name}
+                        ${interface.name}
                         <span class="adapter-arrow">&#9654;</span>
                     </div>
                     <div class="adapter-details">
-                        <div class="adapter-row"><span class="adapter-label">MAC адрес:</span> <span class="adapter-value">${adapter.mac || '-'}</span></div>
-                        <div class="adapter-row"><span class="adapter-label">IP адрес:</span> <span class="adapter-value">${adapter.ip || '-'}</span></div>
-                        <div class="adapter-row"><span class="adapter-label" title="Это максимальная физическая скорость интерфейса, а не текущая скорость передачи данных.">Скорость:</span> <span class="adapter-value">${adapter.speed ? adapter.speed + ' Мбит/с' : '-'}</span></div>
+                        <div class="adapter-row"><span class="adapter-label">MAC адрес:</span> <span class="adapter-value">${interface.mac || '-'}</span></div>
+                        <div class="adapter-row"><span class="adapter-label">IP адрес:</span> <span class="adapter-value">${interface.ip || '-'}</span></div>
+                        <div class="adapter-row"><span class="adapter-label" title="Это максимальная физическая скорость интерфейса, а не текущая скорость передачи данных.">Скорость:</span> <span class="adapter-value">${interface.speed ? interface.speed + ' Мбит/с' : '-'}</span></div>
                         <div class="adapter-row"><span class="adapter-label">Статус:</span> <span class="adapter-value">${smartStatus}</span></div>
-                        <div class="adapter-row"><span class="adapter-label">Входящие пакеты:</span> <span class="adapter-value">${adapter.in_packets ?? '-'}</span></div>
-                        <div class="adapter-row"><span class="adapter-label">Исходящие пакеты:</span> <span class="adapter-value">${adapter.out_packets ?? '-'}</span></div>
-                        <div class="adapter-row"><span class="adapter-label">Ошибки входящие:</span> <span class="adapter-value">${adapter.in_errors ?? '-'}</span></div>
-                        <div class="adapter-row"><span class="adapter-label">Ошибки исходящие:</span> <span class="adapter-value">${adapter.out_errors ?? '-'}</span></div>
-                        <div class="adapter-row"><span class="adapter-label">Текущая загрузка (вход):</span> <span class="adapter-value">${adapter.in_mbps !== undefined ? adapter.in_mbps + ' Мбит/с' : '-'}</span></div>
-                        <div class="adapter-row"><span class="adapter-label">Текущая загрузка (выход):</span> <span class="adapter-value">${adapter.out_mbps !== undefined ? adapter.out_mbps + ' Мбит/с' : '-'}</span></div>
+                        <div class="adapter-row"><span class="adapter-label">Входящие пакеты:</span> <span class="adapter-value">${interface.in_packets ?? '-'}</span></div>
+                        <div class="adapter-row"><span class="adapter-label">Исходящие пакеты:</span> <span class="adapter-value">${interface.out_packets ?? '-'}</span></div>
+                        <div class="adapter-row"><span class="adapter-label">Ошибки входящие:</span> <span class="adapter-value">${interface.in_errors ?? '-'}</span></div>
+                        <div class="adapter-row"><span class="adapter-label">Ошибки исходящие:</span> <span class="adapter-value">${interface.out_errors ?? '-'}</span></div>
+                        <div class="adapter-row"><span class="adapter-label">Текущая загрузка (вход):</span> <span class="adapter-value">${interface.in_mbps !== undefined ? interface.in_mbps + ' Мбит/с' : '-'}</span></div>
+                        <div class="adapter-row"><span class="adapter-label">Текущая загрузка (выход):</span> <span class="adapter-value">${interface.out_mbps !== undefined ? interface.out_mbps + ' Мбит/с' : '-'}</span></div>
                     </div>
                 </div>
                 `;
             }
-            if (!adaptersFirstLoad && openedMacs.length > 0) {
-                // Только обновляем значения для раскрытых адаптеров
-                const allAdapters = [...(data.active || []), ...(data.inactive || [])];
+            if (!interfacesFirstLoad && openedMacs.length > 0) {
+                // Только обновляем значения для раскрытых интерфейсов
+                const allInterfaces = [...(data.active || []), ...(data.inactive || [])];
                 openedMacs.forEach(mac => {
-                    const adapter = allAdapters.find(a => a.mac === mac);
-                    if (!adapter) return;
+                    const interface = allInterfaces.find(i => i.mac === mac);
+                    if (!interface) return;
                     const infoBlock = container.querySelector('.adapter-info.open[data-mac="' + mac + '"]');
                     if (!infoBlock) return;
                     const details = infoBlock.querySelector('.adapter-details');
@@ -655,46 +917,46 @@
                     details.querySelectorAll('.adapter-row').forEach(row => {
                         const label = row.querySelector('.adapter-label').textContent.trim();
                         const valueSpan = row.querySelector('.adapter-value');
-                        if (label === 'IP адрес:') valueSpan.textContent = adapter.ip || '-';
-                        if (label === 'Скорость:') valueSpan.textContent = adapter.speed ? adapter.speed + ' Мбит/с' : '-';
+                        if (label === 'IP адрес:') valueSpan.textContent = interface.ip || '-';
+                        if (label === 'Скорость:') valueSpan.textContent = interface.speed ? interface.speed + ' Мбит/с' : '-';
                         if (label === 'Статус:') {
-                            let smartStatus = (adapter.isup ? 'Включен' : 'Выключен');
-                            if (!adapter.isup && ((adapter.in_mbps && adapter.in_mbps > 0.001) || (adapter.out_mbps && adapter.out_mbps > 0.001))) {
+                            let smartStatus = (interface.isup ? 'Включен' : 'Выключен');
+                            if (!interface.isup && ((interface.in_mbps && interface.in_mbps > 0.001) || (interface.out_mbps && interface.out_mbps > 0.001))) {
                                 smartStatus = 'Включен (по трафику)';
                             }
                             valueSpan.textContent = smartStatus;
                         }
-                        if (label === 'Входящие пакеты:') valueSpan.textContent = adapter.in_packets ?? '-';
-                        if (label === 'Исходящие пакеты:') valueSpan.textContent = adapter.out_packets ?? '-';
-                        if (label === 'Ошибки входящие:') valueSpan.textContent = adapter.in_errors ?? '-';
-                        if (label === 'Ошибки исходящие:') valueSpan.textContent = adapter.out_errors ?? '-';
-                        if (label === 'Текущая загрузка (вход):') valueSpan.textContent = (adapter.in_mbps !== undefined ? adapter.in_mbps + ' Мбит/с' : '-');
-                        if (label === 'Текущая загрузка (выход):') valueSpan.textContent = (adapter.out_mbps !== undefined ? adapter.out_mbps + ' Мбит/с' : '-');
+                        if (label === 'Входящие пакеты:') valueSpan.textContent = interface.in_packets ?? '-';
+                        if (label === 'Исходящие пакеты:') valueSpan.textContent = interface.out_packets ?? '-';
+                        if (label === 'Ошибки входящие:') valueSpan.textContent = interface.in_errors ?? '-';
+                        if (label === 'Ошибки исходящие:') valueSpan.textContent = interface.out_errors ?? '-';
+                        if (label === 'Текущая загрузка (вход):') valueSpan.textContent = (interface.in_mbps !== undefined ? interface.in_mbps + ' Мбит/с' : '-');
+                        if (label === 'Текущая загрузка (выход):') valueSpan.textContent = (interface.out_mbps !== undefined ? interface.out_mbps + ' Мбит/с' : '-');
                     });
                 });
             } else {
                 if (data.active && data.active.length > 0) {
-                    html += '<h3 style="color:#217346;">Подключённые адаптеры</h3>';
-                    for (const adapter of data.active) {
+                    html += '<h3 style="color:#217346;">Подключённые интерфейсы</h3>';
+                    for (const interface of data.active) {
                         let smartStatus = 'Включен';
-                        if (!adapter.isup && ((adapter.in_mbps && adapter.in_mbps > 0.001) || (adapter.out_mbps && adapter.out_mbps > 0.001))) {
+                        if (!interface.isup && ((interface.in_mbps && interface.in_mbps > 0.001) || (interface.out_mbps && interface.out_mbps > 0.001))) {
                             smartStatus = 'Включен (по трафику)';
                         }
-                        html += adapterBlock(adapter, 'Включен', smartStatus);
+                        html += interfaceBlock(interface, 'Включен', smartStatus);
                     }
                 }
                 if (data.inactive && data.inactive.length > 0) {
-                    html += '<h3 style="color:#b22222;">Неактивные адаптеры</h3>';
-                    for (const adapter of data.inactive) {
+                    html += '<h3 style="color:#b22222;">Неактивные интерфейсы</h3>';
+                    for (const interface of data.inactive) {
                         let smartStatus = 'Выключен';
-                        if (!adapter.isup && ((adapter.in_mbps && adapter.in_mbps > 0.001) || (adapter.out_mbps && adapter.out_mbps > 0.001))) {
+                        if (!interface.isup && ((interface.in_mbps && interface.in_mbps > 0.001) || (interface.out_mbps && interface.out_mbps > 0.001))) {
                             smartStatus = 'Включен (по трафику)';
                         }
-                        html += adapterBlock(adapter, 'Выключен', smartStatus);
+                        html += interfaceBlock(interface, 'Выключен', smartStatus);
                     }
                 }
                 if (!html) {
-                    container.innerHTML = '<div style="text-align:center; color:#888;">Нет данных об адаптерах</div>';
+                    container.innerHTML = '<div style="text-align:center; color:#888;">Нет данных об интерфейсах</div>';
                 } else {
                     container.innerHTML = html;
                 }
@@ -706,10 +968,45 @@
                     };
                 });
             }
-            adaptersFirstLoad = false;
+            interfacesFirstLoad = false;
         } catch (e) {
             container.innerHTML = '<div style="text-align:center; color:#888;">Ошибка загрузки</div>';
-            adaptersFirstLoad = false;
+            interfacesFirstLoad = false;
+        }
+    }
+
+    // Динамическая загрузка информации о сетевых интерфейсах сервера
+    async function loadServerInterfaces() {
+        const container = document.getElementById('server-interfaces-list');
+        container.innerHTML = '<div style="text-align:center; color:#888;">Загрузка...</div>';
+        try {
+            const resp = await fetch('/api/server-interfaces');
+            const data = await resp.json();
+            if (!Array.isArray(data) || data.length === 0) {
+                container.innerHTML = '<div style="text-align:center; color:#888;">Нет данных об интерфейсах</div>';
+                return;
+            }
+            let html = '<table class="connections-table"><thead><tr>' +
+                '<th>Интерфейс</th><th>MAC</th><th>IPv4</th><th>Маска</th><th>Broadcast</th><th>IPv6</th><th>Статус</th><th>MTU</th><th>RX bytes</th><th>TX bytes</th>' +
+                '</tr></thead><tbody>';
+            for (const iface of data) {
+                html += `<tr>
+                    <td>${iface.interface || '-'}</td>
+                    <td>${iface.mac || '-'}</td>
+                    <td>${iface.ipv4 || '-'}</td>
+                    <td>${iface.mask || '-'}</td>
+                    <td>${iface.broadcast || '-'}</td>
+                    <td>${iface.ipv6 || '-'}</td>
+                    <td>${iface.status || '-'}</td>
+                    <td>${iface.mtu || '-'}</td>
+                    <td>${iface.rx_bytes || '-'}</td>
+                    <td>${iface.tx_bytes || '-'}</td>
+                </tr>`;
+            }
+            html += '</tbody></table>';
+            container.innerHTML = html;
+        } catch (e) {
+            container.innerHTML = '<div style="text-align:center; color:#e53e3e;">Ошибка загрузки: ' + e.message + '</div>';
         }
     }
 
@@ -727,18 +1024,43 @@
 
     let bandwidthFirstLoad = true;
     let bandwidthChartInstance = null;
+    let currentMonitoringMode = 'nf_conntrack'; // 'nf_conntrack' или 'bandwidth'
+    
+    // Переключение режима мониторинга
+    function toggleMonitoringMode() {
+        currentMonitoringMode = currentMonitoringMode === 'nf_conntrack' ? 'bandwidth' : 'nf_conntrack';
+        const modeText = currentMonitoringMode === 'nf_conntrack' ? 'Точный (nf_conntrack)' : 'Приблизительный (psutil)';
+        document.getElementById('current-mode').textContent = modeText;
+        
+        // Перезагружаем данные
+        bandwidthFirstLoad = true;
+        loadBandwidth();
+    }
+    
     // Динамическая загрузка мониторинга полосы пропускания
     async function loadBandwidth() {
         const tbody = document.getElementById('bandwidth-table-body');
         const ctx = document.getElementById('bandwidthChart');
         if (bandwidthFirstLoad) {
-            tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;">Загрузка...</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;">Загрузка...</td></tr>';
         }
         try {
-            const resp = await fetch('/api/bandwidth');
+            const endpoint = currentMonitoringMode === 'nf_conntrack' ? '/api/nf_conntrack' : '/api/bandwidth';
+            const resp = await fetch(endpoint);
             const data = await resp.json();
+            
+            // Проверяем на ошибку
+            if (data.error) {
+                tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color:#e53e3e;">Ошибка: ${data.error}</td></tr>`;
+                if (bandwidthChartInstance) {
+                    bandwidthChartInstance.destroy();
+                    bandwidthChartInstance = null;
+                }
+                return;
+            }
+            
             if (!Array.isArray(data) || data.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;">Нет данных</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;">Нет данных</td></tr>';
                 if (bandwidthChartInstance) {
                     bandwidthChartInstance.destroy();
                     bandwidthChartInstance = null;
@@ -751,11 +1073,24 @@
             let outData = [];
             let processes = [];
             for (const row of data) {
+                const formatBytes = (bytes) => {
+                    if (bytes === 0 || bytes === undefined) return '-';
+                    if (bytes < 1024) return bytes + ' B';
+                    if (bytes < 1024*1024) return (bytes/1024).toFixed(1) + ' KB';
+                    return (bytes/(1024*1024)).toFixed(1) + ' MB';
+                };
+                
+                // Обрабатываем разные форматы данных
+                const protocols = row.protocols ? (Array.isArray(row.protocols) ? row.protocols.join(', ') : row.protocols) : '-';
+                const remoteIps = row.remote_ips_count !== undefined ? row.remote_ips_count : '-';
+                
                 tbody.innerHTML += `<tr>
                     <td>${row.process || '-'}</td>
                     <td>${row.connections || '-'}</td>
-                    <td>${formatTraffic(row.in_traffic)}</td>
-                    <td>${formatTraffic(row.out_traffic)}</td>
+                    <td>${formatBytes(row.in_traffic)}</td>
+                    <td>${formatBytes(row.out_traffic)}</td>
+                    <td>${protocols}</td>
+                    <td>${remoteIps}</td>
                 </tr>`;
                 processes.push(row.process || '-');
                 inData.push(row.in_traffic || 0);
@@ -807,7 +1142,7 @@
             }
             bandwidthFirstLoad = false;
         } catch (e) {
-            tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;">Ошибка загрузки</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; color:#e53e3e;">Ошибка загрузки: ' + e.message + '</td></tr>';
             if (bandwidthChartInstance) {
                 bandwidthChartInstance.destroy();
                 bandwidthChartInstance = null;
@@ -815,46 +1150,222 @@
         }
     }
 
-    async function loadDeviceBandwidth() {
-        const ip = document.getElementById('device-ip').value;
-        const username = document.getElementById('device-username').value;
-        const password = document.getElementById('device-password').value;
-        const device_type = document.getElementById('device-type').value;
-        const resultDiv = document.getElementById('device-bandwidth-result');
-        resultDiv.innerHTML = 'Загрузка...';
+    // Загрузка быстрого доступа к устройствам
+    async function loadQuickDevices() {
+        const container = document.getElementById('quick-devices-list');
         try {
-            const resp = await fetch('/api/device_bandwidth', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ip, username, password, device_type})
-            });
-            const data = await resp.json();
-            if (data.interfaces && data.interfaces.length > 0) {
-                let html = '<table class="connections-table"><thead><tr><th>Интерфейс</th><th>Входящий трафик</th><th>Исходящий трафик</th></tr></thead><tbody>';
-                for (const iface of data.interfaces) {
-                    html += `<tr><td>${iface.name}</td><td>${iface.in_traffic}</td><td>${iface.out_traffic}</td></tr>`;
-                }
-                html += '</tbody></table>';
-                resultDiv.innerHTML = html;
-            } else {
-                resultDiv.innerHTML = 'Нет данных';
+            const data = await getFirewallDevicesCached();
+            if (!Array.isArray(data) || data.length === 0) {
+                container.innerHTML = '<div style="text-align:center; color:#888;">Нет добавленных устройств</div>';
+                return;
             }
+            
+            let html = '';
+            for (const dev of data) {
+                const statusColor = dev.status === 'Онлайн' ? '#38a169' : '#e53e3e';
+                html += `
+                    <button onclick="showDeviceConnections('${dev.id}', '${dev.name}')" 
+                            style="padding: 8px 12px; background: white; border: 1px solid #e2e8f0; border-radius: 6px; cursor: pointer; display: flex; align-items: center; gap: 6px; font-size: 13px; transition: all 0.2s;"
+                            onmouseover="this.style.background='#f7fafc'" 
+                            onmouseout="this.style.background='white'">
+                        <span style="width: 8px; height: 8px; border-radius: 50%; background: ${statusColor};"></span>
+                        <span>${dev.name || dev.ip}</span>
+                    </button>
+                `;
+            }
+            container.innerHTML = html;
         } catch (e) {
-            resultDiv.innerHTML = 'Ошибка: ' + e;
+            container.innerHTML = '<div style="text-align:center; color:#e53e3e;">Ошибка загрузки</div>';
         }
     }
 
+    // Загрузка списка устройств для прямого подключения
+    async function loadRouterDevicesList() {
+        const select = document.getElementById('router-device-select');
+        try {
+            const data = await getFirewallDevicesCached();
+            select.innerHTML = '<option value="">-- Выберите устройство --</option>';
+            for (const dev of data) {
+                const statusText = dev.status === 'Онлайн' ? ' (Онлайн)' : ' (Оффлайн)';
+                select.innerHTML += `<option value="${dev.id}">${dev.name || dev.ip}${statusText}</option>`;
+            }
+        } catch (e) {
+            select.innerHTML = '<option value="">Ошибка загрузки</option>';
+        }
+    }
+
+    // Подключение к роутеру и получение nf_conntrack
+    async function connectToRouter() {
+        const deviceId = document.getElementById('router-device-select').value;
+        const outputContainer = document.getElementById('router-output-container');
+        const outputDiv = document.getElementById('router-output');
+        
+        if (!deviceId) {
+            alert('Пожалуйста, выберите устройство');
+            return;
+        }
+        
+        outputContainer.style.display = 'block';
+        outputDiv.innerHTML = '<div style="text-align:center; color:#888;">Подключение к устройству...</div>';
+        
+        try {
+            // Отправляем команду cat /proc/net/nf_conntrack
+            const resp = await fetch('/api/device_cli_command', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    device_id: parseInt(deviceId),
+                    command: 'cat /proc/net/nf_conntrack'
+                })
+            });
+            
+            const data = await resp.json();
+            
+            if (data.error) {
+                outputDiv.innerHTML = `<div style="color:#e53e3e;">Ошибка: ${data.error}</div>`;
+                return;
+            }
+            
+            if (data.output) {
+                // Форматируем вывод для лучшей читаемости
+                const formattedOutput = data.output
+                    .split('\n')
+                    .map(line => {
+                        if (!line.trim()) return '';
+                        
+                        // Подсвечиваем ключевые части
+                        let formattedLine = line;
+                        
+                        // Подсвечиваем протоколы
+                        formattedLine = formattedLine.replace(/\b(tcp|udp|icmp)\b/g, '<span style="color:#4a7dff;">$1</span>');
+                        
+                        // Подсвечиваем IP адреса
+                        formattedLine = formattedLine.replace(/(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})/g, '<span style="color:#38a169;">$1</span>');
+                        
+                        // Подсвечиваем порты
+                        formattedLine = formattedLine.replace(/(sport|dport)=(\d+)/g, '<span style="color:#e53e3e;">$1=$2</span>');
+                        
+                        // Подсвечиваем состояния
+                        formattedLine = formattedLine.replace(/\b(ESTABLISHED|TIME_WAIT|CLOSE_WAIT|FIN_WAIT)\b/g, '<span style="color:#d69e2e;">$1</span>');
+                        
+                        // Подсвечиваем байты и пакеты
+                        formattedLine = formattedLine.replace(/(packets|bytes)=(\d+)/g, '<span style="color:#9f7aea;">$1=$2</span>');
+                        
+                        return formattedLine;
+                    })
+                    .join('\n');
+                
+                outputDiv.innerHTML = formattedOutput;
+            } else {
+                outputDiv.innerHTML = '<div style="text-align:center; color:#888;">Нет данных</div>';
+            }
+            
+        } catch (e) {
+            outputDiv.innerHTML = `<div style="color:#e53e3e;">Ошибка подключения: ${e.message}</div>`;
+        }
+    }
+
+    // Очистка вывода роутера
+    function clearRouterOutput() {
+        const outputContainer = document.getElementById('router-output-container');
+        const outputDiv = document.getElementById('router-output');
+        outputContainer.style.display = 'none';
+        outputDiv.innerHTML = '<div style="text-align:center; color:#888;">Нажмите "Подключиться" для получения данных...</div>';
+    }
+
+    // Загрузка списка устройств для мониторинга полосы пропускания
+    async function loadBandwidthDevicesList() {
+        const select = document.getElementById('bandwidth-device-select');
+        try {
+            const data = await getFirewallDevicesCached();
+            select.innerHTML = '<option value="">-- Выберите устройство --</option>';
+            for (const dev of data) {
+                const statusText = dev.status === 'Онлайн' ? ' (Онлайн)' : ' (Оффлайн)';
+                select.innerHTML += `<option value="${dev.id}">${dev.name || dev.ip}${statusText}</option>`;
+            }
+        } catch (e) {
+            select.innerHTML = '<option value="">Ошибка загрузки</option>';
+        }
+    }
+
+    // --- Realtime мониторинг полосы пропускания через WebSocket ---
+    // Переменные для polling (заменяют WebSocket)
+    let currentPollingStop = null;
+
+    async function showBandwidthConnections() {
+        const deviceId = document.getElementById('bandwidth-device-select').value;
+        const outputContainer = document.getElementById('bandwidth-output-container');
+        const outputDiv = document.getElementById('bandwidth-output');
+        
+        if (!deviceId) {
+            alert('Пожалуйста, выберите устройство');
+            return;
+        }
+        
+        // Останавливаем предыдущий polling если был
+        if (window.currentPollingStop) {
+            window.currentPollingStop();
+        }
+        
+        outputContainer.style.display = 'block';
+        outputDiv.innerHTML = '<div style="text-align:center; color:#888;">Подключение к устройству...</div>';
+        
+        // Добавляем кнопку остановки
+        if (!document.getElementById('bandwidth-stop-btn')) {
+            const stopBtn = document.createElement('button');
+            stopBtn.id = 'bandwidth-stop-btn';
+            stopBtn.className = 'action-button danger';
+            stopBtn.style.marginLeft = '12px';
+            stopBtn.innerHTML = '<i class="fas fa-stop"></i> Остановить';
+            stopBtn.onclick = stopBandwidthRealtime;
+            outputContainer.parentElement.insertBefore(stopBtn, outputContainer.nextSibling);
+        }
+
+        // Запускаем polling
+        window.currentPollingStop = startNfConntrackPolling(deviceId);
+    }
+
+    function stopBandwidthRealtime() {
+        if (window.currentPollingStop) {
+            window.currentPollingStop();
+            window.currentPollingStop = null;
+        }
+        const outputDiv = document.getElementById('bandwidth-output');
+        outputDiv.innerHTML += '\n<div style="color:#888;">[Остановлено пользователем]</div>';
+        
+        // Удаляем кнопку остановки
+        const stopBtn = document.getElementById('bandwidth-stop-btn');
+        if (stopBtn) stopBtn.remove();
+    }
+
+                function formatNfConntrackLine(line) {
+                if (!line.trim()) return '';
+                let formattedLine = line;
+                
+                // Форматирование для nf_conntrack (Linux/OpenWrt)
+                formattedLine = formattedLine.replace(/\b(tcp|udp|icmp)\b/g, '<span style="color:#4a7dff;">$1</span>');
+                formattedLine = formattedLine.replace(/(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})/g, '<span style="color:#38a169;">$1</span>');
+                formattedLine = formattedLine.replace(/(sport|dport)=(\d+)/g, '<span style="color:#e53e3e;">$1=$2</span>');
+                formattedLine = formattedLine.replace(/\b(ESTABLISHED|TIME_WAIT|CLOSE_WAIT|FIN_WAIT)\b/g, '<span style="color:#d69e2e;">$1</span>');
+                formattedLine = formattedLine.replace(/(packets|bytes)=(\d+)/g, '<span style="color:#9f7aea;">$1=$2</span>');
+                
+                // Форматирование для Mikrotik RouterOS
+                formattedLine = formattedLine.replace(/\b(TCP|UDP|ICMP)\b/g, '<span style="color:#4a7dff;">$1</span>');
+                formattedLine = formattedLine.replace(/\b(established|new|related)\b/gi, '<span style="color:#d69e2e;">$1</span>');
+                formattedLine = formattedLine.replace(/(\d+\.\d+\.\d+\.\d+):(\d+)/g, '<span style="color:#38a169;">$1</span>:<span style="color:#e53e3e;">$2</span>');
+                
+                return formattedLine;
+            }
+
     // --- Централизованное управление конфигами ---
-    async function loadConfigDevicesList() {
+    async function loadConfigDevicesList(forceReload = false) {
         const select = document.getElementById('config-device-select');
         try {
-            const resp = await fetch('/api/firewall_devices');
-            const data = await resp.json();
+            const data = await getFirewallDevicesCached(forceReload);
             select.innerHTML = '<option value="">-- Выберите устройство --</option>';
             for (const dev of data) {
                 select.innerHTML += `<option value="${dev.id}">${dev.name || dev.ip || dev.id}</option>`;
             }
-            // Если есть хотя бы одно устройство — выбрать первое и загрузить данные
             if (data.length > 0) {
                 select.value = data[0].id;
                 loadDeviceConfigs();
@@ -997,11 +1508,10 @@
     }
 
     // --- CLI-команды ---
-    async function loadCliDevicesList() {
+    async function loadCliDevicesList(forceReload = false) {
         const select = document.getElementById('cli-device-select');
         try {
-            const resp = await fetch('/api/firewall_devices');
-            const data = await resp.json();
+            const data = await getFirewallDevicesCached(forceReload);
             select.innerHTML = '<option value="">-- Выберите устройство --</option>';
             for (const dev of data) {
                 select.innerHTML += `<option value="${dev.id}">${dev.name || dev.ip || dev.id}</option>`;
@@ -1010,6 +1520,18 @@
             select.innerHTML = '<option value="">Ошибка загрузки</option>';
         }
     }
+
+    // Обработчик Enter для терминального ввода
+    document.addEventListener('DOMContentLoaded', function() {
+        const commandInput = document.getElementById('cli-command-input');
+        if (commandInput) {
+            commandInput.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    sendCliCommand();
+                }
+            });
+        }
+    });
 
     async function sendCliCommand() {
         const select = document.getElementById('cli-device-select');
@@ -1031,16 +1553,97 @@
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({command})
             });
-            const data = await resp.json();
+            let data;
+            try {
+                data = await resp.json();
+            } catch (e) {
+                resultDiv.textContent = 'Ошибка парсинга ответа: ' + e;
+                return;
+            }
             if (data.result !== undefined) {
-                resultDiv.textContent = data.result;
+                resultDiv.innerHTML = data.result.replace(/\n/g, '<br>');
             } else if (data.error) {
-                resultDiv.textContent = 'Ошибка: ' + data.error;
+                resultDiv.innerHTML = 'Ошибка: ' + data.error;
             } else {
-                resultDiv.textContent = 'Неизвестный ответ';
+                resultDiv.innerHTML = 'Неизвестный ответ: ' + JSON.stringify(data);
             }
         } catch (e) {
-            resultDiv.textContent = 'Ошибка: ' + e.message;
+            resultDiv.textContent = 'Ошибка выполнения запроса: ' + e;
+        }
+    }
+
+    // Динамическая загрузка адаптеров
+    async function loadAdapters() {
+        const container = document.getElementById('adapters-list');
+        container.innerHTML = 'Загрузка адаптеров...';
+        try {
+            const resp = await fetch('/api/adapters');
+            const data = await resp.json();
+            if (!data || (!Array.isArray(data.active) && !Array.isArray(data.inactive))) {
+                container.innerHTML = '<div style="text-align:center; color:#888;">Нет данных об интерфейсах</div>';
+                return;
+            }
+            let html = '';
+            function isOpen(mac) {
+                return Array.from(container.querySelectorAll('.adapter-info.open[data-mac]')).some(e => e.getAttribute('data-mac') === mac);
+            }
+            function interfaceBlock(interface, status, smartStatus) {
+                return `
+                <div class="adapter-info${isOpen(interface.mac) ? ' open' : ''}" data-mac="${interface.mac}">
+                    <div class="adapter-title">
+                        ${interface.name}
+                        <span class="adapter-arrow">&#9654;</span>
+                    </div>
+                    <div class="adapter-details">
+                        <div class="adapter-row"><span class="adapter-label">MAC адрес:</span> <span class="adapter-value">${interface.mac || '-'}</span></div>
+                        <div class="adapter-row"><span class="adapter-label">IP адрес:</span> <span class="adapter-value">${interface.ip || '-'}</span></div>
+                        <div class="adapter-row"><span class="adapter-label" title="Это максимальная физическая скорость интерфейса, а не текущая скорость передачи данных.">Скорость:</span> <span class="adapter-value">${interface.speed ? interface.speed + ' Мбит/с' : '-'}</span></div>
+                        <div class="adapter-row"><span class="adapter-label">Статус:</span> <span class="adapter-value">${smartStatus}</span></div>
+                        <div class="adapter-row"><span class="adapter-label">Входящие пакеты:</span> <span class="adapter-value">${interface.in_packets ?? '-'}</span></div>
+                        <div class="adapter-row"><span class="adapter-label">Исходящие пакеты:</span> <span class="adapter-value">${interface.out_packets ?? '-'}</span></div>
+                        <div class="adapter-row"><span class="adapter-label">Ошибки входящие:</span> <span class="adapter-value">${interface.in_errors ?? '-'}</span></div>
+                        <div class="adapter-row"><span class="adapter-label">Ошибки исходящие:</span> <span class="adapter-value">${interface.out_errors ?? '-'}</span></div>
+                        <div class="adapter-row"><span class="adapter-label">Текущая загрузка (вход):</span> <span class="adapter-value">${interface.in_mbps !== undefined ? interface.in_mbps + ' Мбит/с' : '-'}</span></div>
+                        <div class="adapter-row"><span class="adapter-label">Текущая загрузка (выход):</span> <span class="adapter-value">${interface.out_mbps !== undefined ? interface.out_mbps + ' Мбит/с' : '-'}</span></div>
+                    </div>
+                </div>
+                `;
+            }
+            if (data.active && data.active.length > 0) {
+                html += '<h3 style="color:#217346;">Подключённые интерфейсы</h3>';
+                for (const interface of data.active) {
+                    let smartStatus = 'Включен';
+                    if (!interface.isup && ((interface.in_mbps && interface.in_mbps > 0.001) || (interface.out_mbps && interface.out_mbps > 0.001))) {
+                        smartStatus = 'Включен (по трафику)';
+                    }
+                    html += interfaceBlock(interface, 'Включен', smartStatus);
+                }
+            }
+            if (data.inactive && data.inactive.length > 0) {
+                html += '<h3 style="color:#b22222;">Неактивные интерфейсы</h3>';
+                for (const interface of data.inactive) {
+                    let smartStatus = 'Выключен';
+                    if (!interface.isup && ((interface.in_mbps && interface.in_mbps > 0.001) || (interface.out_mbps && interface.out_mbps > 0.001))) {
+                        smartStatus = 'Включен (по трафику)';
+                    }
+                    html += interfaceBlock(interface, 'Выключен', smartStatus);
+                }
+            }
+            if (!html) {
+                container.innerHTML = '<div style="text-align:center; color:#888;">Нет данных об интерфейсах</div>';
+            } else {
+                container.innerHTML = html;
+            }
+            // Навешиваем обработчики на все .adapter-title
+            container.querySelectorAll('.adapter-info').forEach(function(block) {
+                block.onclick = function(e) {
+                    // Не раскрывать при клике на вложенные элементы (например, кнопки внутри)
+                    if (e.target.classList.contains('adapter-arrow')) return;
+                    this.classList.toggle('open');
+                };
+            });
+        } catch (e) {
+            container.innerHTML = '<div style="text-align:center; color:#888;">Ошибка загрузки</div>';
         }
     }
 
@@ -1053,19 +1656,26 @@
         }
         showTab(idx);
         loadFirewallDevices();
-        setInterval(loadFirewallDevices, 30000); // автообновление каждые 30 секунд
-        loadAdapters();
-        setInterval(loadAdapters, 3000); // автообновление адаптеров каждые 3 секунды
-        loadBandwidth();
-        setInterval(loadBandwidth, 3000); // автообновление каждые 3 секунды
-        // По умолчанию все адаптеры свернуты
+        loadConfigDevicesList();
+        loadCliDevicesList();
+        // setInterval(() => { // автообновление отключено
+        //     window.firewallDevicesCache = null;
+        //     loadFirewallDevices(true);
+        //     loadConfigDevicesList(true);
+        //     loadCliDevicesList(true);
+        // }, 30000);
+        loadInterfaces();
+        // Добавить кнопки для ручного обновления
+        document.getElementById('adapters-list').innerHTML += '<button onclick="loadAdapters()" style="margin-bottom:8px;">Обновить адаптеры</button>';
+        document.getElementById('bandwidth-table-body').innerHTML += '<button onclick="loadBandwidth()" style="margin-bottom:8px;">Обновить трафик</button>';
+        // По умолчанию все интерфейсы свернуты
         document.querySelectorAll('.adapter-info').forEach(function(block) {
             block.classList.remove('open');
         });
         // Загружаем список устройств при открытии вкладки управления (теперь индекс 1)
-        loadConfigDevicesList();
+        // loadConfigDevicesList(); // This line is now redundant as loadConfigDevicesList is called in DOMContentLoaded
         document.querySelectorAll('.tab-item')[1].addEventListener('click', loadConfigDevicesList);
-        loadCliDevicesList();
+        // loadCliDevicesList(); // This line is now redundant as loadCliDevicesList is called in DOMContentLoaded
 
         const select = document.getElementById('config-device-select');
         if (select) {
@@ -1075,8 +1685,8 @@
         }
     });
 
-    // Сворачивание/разворачивание адаптеров
-    function toggleAdapter(titleElem) {
+    // Сворачивание/разворачивание интерфейсов
+    function toggleInterface(titleElem) {
         const infoBlock = titleElem.parentElement;
         infoBlock.classList.toggle('open');
     }
@@ -1088,6 +1698,80 @@
             closeConnectionsModal();
         }
     });
+
+    function startNfConntrackPolling(deviceId) {
+        const outputDiv = document.getElementById('bandwidth-output');
+        outputDiv.innerHTML = '<div style="color:#3182ce; padding: 10px; background: #ebf8ff; border-radius: 4px;">Получение данных...</div>';
+        
+        let pollInterval;
+        let isPolling = false;
+        let pollCount = 0;
+        
+        function pollData() {
+            if (isPolling) return;
+            isPolling = true;
+            pollCount++;
+            
+            fetch(`/api/device_nf_conntrack?device_id=${deviceId}`)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    console.log('Polling data received:', data);
+                    
+                    if (data.error) {
+                        outputDiv.innerHTML = `<div style="color:#e53e3e; padding: 10px; background: #fed7d7; border-radius: 4px;">Ошибка: ${data.error}</div>`;
+                        return;
+                    }
+                    
+                    // Очищаем предыдущие данные и показываем актуальные
+                    outputDiv.innerHTML = '';
+                    
+                    // Добавляем информацию о времени и количестве соединений
+                    outputDiv.innerHTML += `<div style="color:#3182ce; padding: 5px; background: #ebf8ff; border-radius: 4px; margin: 5px 0; font-size: 12px;">
+                        Обновлено: ${new Date(data.timestamp).toLocaleString()} | 
+                        Устройство: ${data.device_name} (${data.device_ip}) | 
+                        Всего соединений: ${data.total_connections} | 
+                        Опрос #${pollCount}
+                    </div>`;
+                    
+                    // Показываем все актуальные данные соединений
+                    if (data.lines && data.lines.length > 0) {
+                        data.lines.forEach(line => {
+                            const formattedLine = formatNfConntrackLine(line);
+                            outputDiv.innerHTML += formattedLine + '\n';
+                        });
+                    } else {
+                        outputDiv.innerHTML += '<div style="color:#718096; padding: 5px; font-style: italic;">Нет активных соединений</div>';
+                    }
+                    
+                    outputDiv.scrollTop = outputDiv.scrollHeight;
+                })
+                .catch(error => {
+                    console.error('Polling error:', error);
+                    outputDiv.innerHTML = `<div style="color:#e53e3e; padding: 10px; background: #fed7d7; border-radius: 4px;">Ошибка подключения: ${error.message}</div>`;
+                })
+                .finally(() => {
+                    isPolling = false;
+                });
+        }
+        
+        // Запускаем первое получение данных
+        pollData();
+        
+        // Устанавливаем интервал для polling каждые 0.5 секунды
+        pollInterval = setInterval(pollData, 500);
+        
+        // Возвращаем функцию для остановки polling
+        return () => {
+            if (pollInterval) {
+                clearInterval(pollInterval);
+            }
+        };
+    }
 </script>
 </body>
 </html>
