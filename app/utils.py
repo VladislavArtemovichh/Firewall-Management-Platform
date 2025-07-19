@@ -6,6 +6,9 @@ def parse_ifconfig_output(output: str):
     interface, mac, ipv4, mask, broadcast, ipv6, status, mtu, rx_bytes, tx_bytes
     """
     result = {}
+    if output is None:
+        return result
+    
     lines = output.splitlines()
     if not lines:
         return result
