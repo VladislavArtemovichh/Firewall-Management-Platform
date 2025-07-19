@@ -1,788 +1,780 @@
-from fastapi import APIRouter, HTTPException, Query, Body, WebSocket, WebSocketDisconnect
-from app.models import FirewallDeviceModel, FirewallDeviceCreate
-from app.database import get_all_firewall_devices, add_firewall_device, delete_firewall_device, get_firewall_device_by_id, get_device_config, save_device_config, backup_device_config, get_device_config_backups, get_device_config_audit
-from typing import List
-from netmiko import ConnectHandler
-from pysnmp.hlapi.asyncio import *
 import asyncio
 import logging
-import sys
-import re
-import subprocess
 from datetime import datetime
-import threading
+from typing import List, Dict, Any, Optional
+from fastapi import APIRouter, HTTPException, Query, Body
+from pydantic import BaseModel
 from netmiko import ConnectHandler
-from .database import get_ssh_connection, close_ssh_connection, cleanup_dead_connections
+import re
+import json
 
-class ColorFormatter(logging.Formatter):
-    COLORS = {
-        'INFO': '\033[92m',      # Зеленый
-        'ERROR': '\033[91m',     # Красный
-        'FIREWALL-LOG': '\033[94m', # Синий
-        'NETMIKO': '\033[95m',   # Фиолетовый
-        'PARAMIKO': '\033[93m',  # Желтый
-        'RESET': '\033[0m',
-    }
-    def format(self, record):
-        msg = super().format(record)
-        lower_msg = msg.lower()
-        if '[FIREWALL-LOG]' in msg:
-            color = self.COLORS['FIREWALL-LOG']
-        elif 'netmiko' in lower_msg:
-            color = self.COLORS['NETMIKO']
-        elif 'paramiko' in lower_msg:
-            color = self.COLORS['PARAMIKO']
-        elif record.levelno == logging.INFO:
-            color = self.COLORS['INFO']
-        elif record.levelno == logging.ERROR:
-            color = self.COLORS['ERROR']
-        else:
-            color = ''
-        reset = self.COLORS['RESET']
-        return f"{color}{msg}{reset}"
-
-handler = logging.StreamHandler(sys.stdout)
-handler.setFormatter(ColorFormatter('%(asctime)s %(levelname)s %(message)s'))
-logging.basicConfig(level=logging.INFO, handlers=[handler])
+from .database import get_firewall_device_by_id
+from .models import FirewallDeviceModel, FirewallDeviceCreate
 
 router = APIRouter()
 
-@router.get("/api/firewall_devices", response_model=List[FirewallDeviceModel])
-async def api_get_devices():
-    logging.info("[FIREWALL-LOG] api_get_devices called")
-    return await get_all_firewall_devices()
+# Настройка логирования
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-@router.post("/api/firewall_devices")
-async def api_add_device(device: FirewallDeviceCreate):
-    logging.info(f"[FIREWALL-LOG] api_add_device called with device={device}")
-    await add_firewall_device(device)
-    return {"result": "ok"}
+# SSH соединения
+ssh_connections = {}
 
-@router.delete("/api/firewall_devices/{device_id}")
-async def api_delete_device(device_id: int):
-    logging.info(f"[FIREWALL-LOG] api_delete_device called with device_id={device_id}")
-    await delete_firewall_device(device_id)
-    return {"result": "ok"}
+def get_ssh_connection(device_config):
+    """Получает или создает SSH соединение"""
+    key = f"{device_config['host']}_{device_config['username']}"
+    if key not in ssh_connections:
+        ssh_connections[key] = ConnectHandler(**device_config)
+    return ssh_connections[key]
 
-def poll_device_via_ssh_sync(netmiko_device, command):
-    from netmiko import ConnectHandler
-    logging.info(f"[FIREWALL-LOG] poll_device_via_ssh_sync called with netmiko_device={netmiko_device}, command={command}")
-    with ConnectHandler(**netmiko_device) as ssh:
-        return ssh.send_command(command)
+def close_ssh_connection(host, username):
+    """Закрывает SSH соединение"""
+    key = f"{host}_{username}"
+    if key in ssh_connections:
+        try:
+            ssh_connections[key].disconnect()
+        except:
+            pass
+        del ssh_connections[key]
 
-async def poll_device_via_ssh(netmiko_device, command):
-    loop = asyncio.get_event_loop()
-    logging.info(f"[FIREWALL-LOG] poll_device_via_ssh called with netmiko_device={netmiko_device}, command={command}")
-    return await loop.run_in_executor(None, poll_device_via_ssh_sync, netmiko_device, command)
+# === DNS БЛОКИРОВКА (DNSMASQ) ===
 
-@router.get("/api/firewall_connections")
-async def api_get_connections(device_id: int = Query(...)):
-    logging.info(f"[FIREWALL-LOG] api_get_connections called with device_id={device_id}")
-    device = await get_firewall_device_by_id(device_id)
-    if not device:
-        raise HTTPException(status_code=404, detail="Device not found")
-    netmiko_device = {
-        'device_type': 'linux' if device['type'] == 'openwrt' else device['type'],
-        'host': device['ip'],
-        'username': device['username'],
-        'password': device['password'],
-    }
-    try:
-        if device['type'] == 'openwrt' or device['type'] == 'linux':
-            # Сначала пробуем получить данные из nf_conntrack (более детально)
-            try:
-                command = 'cat /proc/net/nf_conntrack'
-                output = await poll_device_via_ssh(netmiko_device, command)
-                connections = []
-                
-                for line in str(output).splitlines():
-                    if not line.strip():
-                        continue
-                    
-                    # Парсим строку nf_conntrack
-                    # Пример: ipv4 2 tcp 6 300 ESTABLISHED src=192.168.1.100 dst=8.8.8.8 sport=12345 dport=53 packets=5 bytes=300 src=8.8.8.8 dst=192.168.1.100 sport=53 dport=12345 packets=3 bytes=150 mark=0 use=1
-                    parts = line.split()
-                    if len(parts) < 10:
-                        continue
-                    
-                    try:
-                        # Извлекаем основную информацию
-                        protocol = parts[2]  # tcp, udp, icmp
-                        state = parts[5]     # ESTABLISHED, TIME_WAIT, etc.
-                        
-                        # Ищем src и dst адреса
-                        src_addr = None
-                        dst_addr = None
-                        src_port = None
-                        dst_port = None
-                        packets_in = 0
-                        bytes_in = 0
-                        packets_out = 0
-                        bytes_out = 0
-                        
-                        for i, part in enumerate(parts):
-                            if part == 'src=':
-                                src_addr = parts[i+1]
-                            elif part == 'dst=':
-                                dst_addr = parts[i+1]
-                            elif part == 'sport=':
-                                src_port = parts[i+1]
-                            elif part == 'dport=':
-                                dst_port = parts[i+1]
-                            elif part == 'packets=':
-                                # Первый packets - входящие
-                                if packets_in == 0:
-                                    packets_in = int(parts[i+1])
-                                else:
-                                    packets_out = int(parts[i+1])
-                            elif part == 'bytes=':
-                                # Первый bytes - входящие
-                                if bytes_in == 0:
-                                    bytes_in = int(parts[i+1])
-                                else:
-                                    bytes_out = int(parts[i+1])
-                        
-                        if src_addr and dst_addr:
-                            connections.append({
-                                "interface": '-',
-                                "protocol": protocol.upper(),
-                                "local_address": src_addr,
-                                "local_port": src_port or '-',
-                                "remote_address": dst_addr,
-                                "remote_port": dst_port or '-',
-                                "status": state,
-                                "process": '-',
-                                "packets_in": packets_in,
-                                "bytes_in": bytes_in,
-                                "packets_out": packets_out,
-                                "bytes_out": bytes_out,
-                                "total_traffic": bytes_in + bytes_out
-                            })
-                    except Exception as parse_error:
-                        logging.warning(f"[FIREWALL-LOG] Error parsing nf_conntrack line: {line[:100]}... Error: {parse_error}")
-                        continue
-                
-                if connections:
-                    # Сортируем по общему трафику (убывание)
-                    connections.sort(key=lambda x: x.get('total_traffic', 0), reverse=True)
-                    return connections
-                    
-            except Exception as nf_error:
-                logging.warning(f"[FIREWALL-LOG] nf_conntrack failed, falling back to netstat: {nf_error}")
-            
-            # Fallback к netstat если nf_conntrack недоступен
-            command = 'netstat -tunp'
-            output = await poll_device_via_ssh(netmiko_device, command)
-            connections = []
-            for line in str(output).splitlines():
-                if line.startswith('Proto') or line.startswith('Active') or not line.strip():
-                    continue
-                parts = line.split()
-                if len(parts) < 7:
-                    continue
-                proto = parts[0]
-                local = parts[3]
-                remote = parts[4]
-                status = parts[5] if proto.startswith('tcp') else '-'
-                pid_proc = parts[6] if len(parts) > 6 else '-'
-                local_addr, local_port = local.rsplit(':', 1) if ':' in local else (local, '-')
-                remote_addr, remote_port = remote.rsplit(':', 1) if ':' in remote else (remote, '-')
-                connections.append({
-                    "interface": '-',
-                    "protocol": proto,
-                    "local_address": local_addr,
-                    "local_port": local_port,
-                    "remote_address": remote_addr,
-                    "remote_port": remote_port,
-                    "status": status,
-                    "process": pid_proc,
-                    "packets_in": 0,
-                    "bytes_in": 0,
-                    "packets_out": 0,
-                    "bytes_out": 0,
-                    "total_traffic": 0
-                })
-            return connections
-        elif 'cisco' in device['type']:
-            command = 'show conn'
-            output = await poll_device_via_ssh(netmiko_device, command)
-            connections = []
-            for line in str(output).splitlines():
-                if not line.strip() or line.startswith(' '):
-                    continue
-                parts = line.split()
-                if len(parts) >= 7:
-                    connections.append({
-                        "interface": parts[0],
-                        "protocol": parts[1],
-                        "local_address": parts[2],
-                        "local_port": parts[3],
-                        "remote_address": parts[4],
-                        "remote_port": parts[5],
-                        "status": parts[6],
-                        "process": '-',
-                        "packets_in": 0,
-                        "bytes_in": 0,
-                        "packets_out": 0,
-                        "bytes_out": 0,
-                        "total_traffic": 0
-                    })
-            return connections
-        elif 'mikrotik' in device['type']:
-            # Mikrotik RouterOS использует свой синтаксис команд
-            command = '/ip firewall connection print'
-            output = await poll_device_via_ssh(netmiko_device, command)
-            connections = []
-            
-            for line in str(output).splitlines():
-                if not line.strip() or line.startswith('Flags:') or line.startswith('Columns:'):
-                    continue
-                
-                # Парсим вывод Mikrotik
-                # Пример: 0 D tcp 192.168.1.100:12345 8.8.8.8:53 established 0 0
-                parts = line.split()
-                if len(parts) >= 6:
-                    try:
-                        # Извлекаем данные из строки Mikrotik
-                        protocol = parts[2].upper()  # tcp, udp, icmp
-                        local_full = parts[3]  # 192.168.1.100:12345
-                        remote_full = parts[4]  # 8.8.8.8:53
-                        status = parts[5]  # established, time-wait, etc.
-                        
-                        # Парсим адреса и порты
-                        local_addr, local_port = local_full.rsplit(':', 1) if ':' in local_full else (local_full, '-')
-                        remote_addr, remote_port = remote_full.rsplit(':', 1) if ':' in remote_full else (remote_full, '-')
-                        
-                        # Пытаемся получить трафик (если есть дополнительные поля)
-                        packets_in = 0
-                        bytes_in = 0
-                        packets_out = 0
-                        bytes_out = 0
-                        
-                        if len(parts) >= 8:
-                            try:
-                                packets_in = int(parts[6])
-                                bytes_in = int(parts[7])
-                            except:
-                                pass
-                        
-                        if len(parts) >= 10:
-                            try:
-                                packets_out = int(parts[8])
-                                bytes_out = int(parts[9])
-                            except:
-                                pass
-                        
-                        connections.append({
-                            "interface": '-',
-                            "protocol": protocol,
-                            "local_address": local_addr,
-                            "local_port": local_port,
-                            "remote_address": remote_addr,
-                            "remote_port": remote_port,
-                            "status": status,
-                            "process": '-',
-                            "packets_in": packets_in,
-                            "bytes_in": bytes_in,
-                            "packets_out": packets_out,
-                            "bytes_out": bytes_out,
-                            "total_traffic": bytes_in + bytes_out
-                        })
-                    except Exception as parse_error:
-                        logging.warning(f"[FIREWALL-LOG] Error parsing Mikrotik line: {line[:100]}... Error: {parse_error}")
-                        continue
-            
-            # Сортируем по общему трафику (убывание)
-            connections.sort(key=lambda x: x.get('total_traffic', 0), reverse=True)
-            return connections
-        else:
-            raise HTTPException(status_code=400, detail="Unsupported device type")
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-@router.get("/api/device_config")
-async def api_get_device_config(device_id: int = Query(...)):
-    logging.info(f"[FIREWALL-LOG] api_get_device_config called with device_id={device_id}")
-    config = await get_device_config(device_id)
-    return {"config": config}
-
-@router.post("/api/device_config")
-async def api_save_device_config(device_id: int = Query(...), config: str = Body(...), username: str = Body(...)):
-    logging.info(f"[FIREWALL-LOG] api_save_device_config called with device_id={device_id}, config={config}, username={username}")
-    await save_device_config(device_id, config, username)
-    return {"result": "ok"}
-
-@router.post("/api/device_config_backup")
-async def api_backup_device_config(device_id: int = Query(...), config: str = Body(...), username: str = Body(...)):
-    logging.info(f"[FIREWALL-LOG] api_backup_device_config called with device_id={device_id}, config={config}, username={username}")
-    await backup_device_config(device_id, config, username)
-    return {"result": "ok"}
-
-@router.get("/api/device_config_backups")
-async def api_get_device_config_backups(device_id: int = Query(...)):
-    logging.info(f"[FIREWALL-LOG] api_get_device_config_backups called with device_id={device_id}")
-    backups = await get_device_config_backups(device_id)
-    return backups
-
-@router.get("/api/device_config_audit")
-async def api_get_device_config_audit(device_id: int = Query(...)):
-    logging.info(f"[FIREWALL-LOG] api_get_device_config_audit called with device_id={device_id}")
-    audit = await get_device_config_audit(device_id)
-    return audit 
-
-@router.post("/api/device_cli_command")
-async def api_device_cli_command(device_id: int = Query(...), command_data: dict = Body(...)):
-    logging.info(f"[FIREWALL-LOG] api_device_cli_command called with device_id={device_id}, command_data={command_data}")
-    command = command_data.get("command")
-    if not command:
-        raise HTTPException(status_code=400, detail="Command is required")
-    
-    device = await get_firewall_device_by_id(device_id)
-    if not device:
-        raise HTTPException(status_code=404, detail="Device not found")
-    # SSH-ветка (через executor)
-    netmiko_device = {
-        'device_type': 'linux' if device['type'] == 'openwrt' else device['type'],
-        'host': device['ip'],
-        'username': device['username'],
-        'password': device['password'],
-    }
-    try:
-        output = await poll_device_via_ssh(netmiko_device, command)
-        return {"result": output}
-    except Exception as e:
-        return {"error": str(e)} 
-
-@router.get("/api/device_interfaces")
-async def api_get_device_interfaces(device_id: int = Query(...)):
-    logging.info(f"[FIREWALL-LOG] api_get_device_interfaces called with device_id={device_id}")
-    device = await get_firewall_device_by_id(device_id)
-    if not device:
-        raise HTTPException(status_code=404, detail="Device not found")
-    
-    netmiko_device = {
-        'device_type': 'linux' if device['type'] == 'openwrt' else device['type'],
-        'host': device['ip'],
-        'username': device['username'],
-        'password': device['password'],
-    }
-    
-    try:
-        if device['type'] == 'mikrotik_routeros':
-            # Mikrotik RouterOS
-            command = '/interface print'
-            output = await poll_device_via_ssh(netmiko_device, command)
-            interfaces = []
-            
-            for line in str(output).splitlines():
-                if line.startswith('Flags:') or not line.strip():
-                    continue
-                parts = line.split()
-                if len(parts) >= 3:
-                    interface_name = parts[1]
-                    status = 'UP' if 'R' in parts[0] else 'DOWN'
-                    interfaces.append({
-                        "interface": interface_name,
-                        "status": status,
-                        "ipv4": '-',
-                        "ipv6": '-',
-                        "mac": '-',
-                        "mtu": '-',
-                        "rx_bytes": 0,
-                        "tx_bytes": 0
-                    })
-            
-            # Получаем статистику трафика
-            try:
-                stats_command = '/interface print stats'
-                stats_output = await poll_device_via_ssh(netmiko_device, stats_command)
-                
-                for line in str(stats_output).splitlines():
-                    if 'rx-byte=' in line and 'tx-byte=' in line:
-                        parts = line.split()
-                        for i, part in enumerate(parts):
-                            if part == 'name=':
-                                iface_name = parts[i+1]
-                            elif part == 'rx-byte=':
-                                rx_bytes = int(parts[i+1])
-                            elif part == 'tx-byte=':
-                                tx_bytes = int(parts[i+1])
-                        
-                        # Обновляем интерфейс
-                        for iface in interfaces:
-                            if iface['interface'] == iface_name:
-                                iface['rx_bytes'] = rx_bytes
-                                iface['tx_bytes'] = tx_bytes
-                                break
-            except Exception as stats_error:
-                logging.warning(f"[FIREWALL-LOG] Failed to get Mikrotik interface stats: {stats_error}")
-            
-            return interfaces
-            
-        elif device['type'] == 'cisco_ios':
-            # Cisco IOS
-            command = 'show interfaces'
-            output = await poll_device_via_ssh(netmiko_device, command)
-            interfaces = []
-            
-            current_interface = None
-            for line in str(output).splitlines():
-                if line.startswith('Interface '):
-                    if current_interface:
-                        interfaces.append(current_interface)
-                    interface_name = line.split()[1]
-                    current_interface = {
-                        "interface": interface_name,
-                        "status": "DOWN",
-                        "ipv4": '-',
-                        "ipv6": '-',
-                        "mac": '-',
-                        "mtu": '-',
-                        "rx_bytes": 0,
-                        "tx_bytes": 0
-                    }
-                elif current_interface and 'line protocol is' in line:
-                    if 'up' in line.lower():
-                        current_interface['status'] = 'UP'
-                elif current_interface and 'MTU' in line:
-                    mtu_match = re.search(r'MTU (\d+)', line)
-                    if mtu_match:
-                        current_interface['mtu'] = mtu_match.group(1)
-                elif current_interface and 'input packets' in line:
-                    # Извлекаем байты из строки статистики
-                    rx_match = re.search(r'(\d+) bytes', line)
-                    if rx_match:
-                        current_interface['rx_bytes'] = int(rx_match.group(1))
-                elif current_interface and 'output packets' in line:
-                    tx_match = re.search(r'(\d+) bytes', line)
-                    if tx_match:
-                        current_interface['tx_bytes'] = int(tx_match.group(1))
-            
-            if current_interface:
-                interfaces.append(current_interface)
-            
-            return interfaces
-            
-        else:
-            # Linux/OpenWrt
-            command = 'cat /proc/net/dev'
-            output = await poll_device_via_ssh(netmiko_device, command)
-            interfaces = []
-            
-            for line in str(output).splitlines():
-                if ':' in line and not line.startswith('Inter-'):
-                    parts = line.split()
-                    if len(parts) >= 10:
-                        interface_name = parts[0].rstrip(':')
-                        rx_bytes = int(parts[1])
-                        tx_bytes = int(parts[9])
-                        
-                        interfaces.append({
-                            "interface": interface_name,
-                            "status": "UP",  # Предполагаем что интерфейс активен
-                            "ipv4": '-',
-                            "ipv6": '-',
-                            "mac": '-',
-                            "mtu": '-',
-                            "rx_bytes": rx_bytes,
-                            "tx_bytes": tx_bytes
-                        })
-            
-            return interfaces
-            
-    except Exception as e:
-        logging.error(f"[FIREWALL-LOG] Error getting device interfaces: {e}")
-        raise HTTPException(status_code=500, detail=f"Error getting device interfaces: {str(e)}")
-
-@router.get("/api/device_traffic")
-async def api_get_device_traffic(device_id: int = Query(...)):
-    """API для получения данных о трафике с удалённого устройства через nf_conntrack"""
-    logging.info(f"[FIREWALL-LOG] api_get_device_traffic called with device_id={device_id}")
-    device = await get_firewall_device_by_id(device_id)
-    if not device:
-        raise HTTPException(status_code=404, detail="Device not found")
-    
-    netmiko_device = {
-        'device_type': 'linux' if device['type'] == 'openwrt' else device['type'],
-        'host': device['ip'],
-        'username': device['username'],
-        'password': device['password'],
-    }
-    
-    try:
-        if device['type'] == 'openwrt' or device['type'] == 'linux':
-            # Получаем данные из nf_conntrack на роутере
-            command = 'cat /proc/net/nf_conntrack'
-            output = await poll_device_via_ssh(netmiko_device, command)
-            
-            # Группируем по процессам (если возможно)
-            process_stats = {}
-            
-            for line in str(output).splitlines():
-                if not line.strip():
-                    continue
-                
-                # Парсим строку nf_conntrack
-                parts = line.split()
-                if len(parts) < 10:
-                    continue
-                
-                try:
-                    protocol = parts[2]  # tcp, udp, icmp
-                    state = parts[5]     # ESTABLISHED, TIME_WAIT, etc.
-                    
-                    # Ищем src и dst адреса, порты и трафик
-                    src_addr = None
-                    dst_addr = None
-                    src_port = None
-                    dst_port = None
-                    packets_in = 0
-                    bytes_in = 0
-                    packets_out = 0
-                    bytes_out = 0
-                    
-                    for i, part in enumerate(parts):
-                        if part == 'src=':
-                            src_addr = parts[i+1]
-                        elif part == 'dst=':
-                            dst_addr = parts[i+1]
-                        elif part == 'sport=':
-                            src_port = parts[i+1]
-                        elif part == 'dport=':
-                            dst_port = parts[i+1]
-                        elif part == 'packets=':
-                            if packets_in == 0:
-                                packets_in = int(parts[i+1])
-                            else:
-                                packets_out = int(parts[i+1])
-                        elif part == 'bytes=':
-                            if bytes_in == 0:
-                                bytes_in = int(parts[i+1])
-                            else:
-                                bytes_out = int(parts[i+1])
-                    
-                    if src_addr and dst_addr:
-                        # Пытаемся найти процесс по порту
-                        process_name = "unknown"
-                        try:
-                            # Используем netstat для поиска процесса
-                            netstat_cmd = f"netstat -tunp | grep ':{src_port}'"
-                            netstat_output = await poll_device_via_ssh(netmiko_device, netstat_cmd)
-                            
-                            for netstat_line in str(netstat_output).splitlines():
-                                if f':{src_port}' in netstat_line and 'users:' in netstat_line:
-                                    # Извлекаем имя процесса
-                                    if 'users:' in netstat_line:
-                                        users_part = netstat_line.split('users:')[1]
-                                        if 'pid=' in users_part:
-                                            pid_match = re.search(r'pid=(\d+)', users_part)
-                                            if pid_match:
-                                                pid = pid_match.group(1)
-                                                # Получаем имя процесса
-                                                ps_cmd = f"ps -p {pid} -o comm="
-                                                ps_output = await poll_device_via_ssh(netmiko_device, ps_cmd)
-                                                process_name = str(ps_output).strip() or f"pid_{pid}"
-                                            break
-                        except Exception:
-                            pass
-                        
-                        if process_name not in process_stats:
-                            process_stats[process_name] = {
-                                "connections": 0,
-                                "bytes_recv": 0,
-                                "bytes_sent": 0,
-                                "protocols": set(),
-                                "remote_ips": set()
-                            }
-                        
-                        process_stats[process_name]["connections"] += 1
-                        process_stats[process_name]["bytes_recv"] += bytes_in
-                        process_stats[process_name]["bytes_sent"] += bytes_out
-                        process_stats[process_name]["protocols"].add(protocol.upper())
-                        process_stats[process_name]["remote_ips"].add(dst_addr)
-                        
-                except Exception as parse_error:
-                    logging.warning(f"[FIREWALL-LOG] Error parsing nf_conntrack line: {line[:100]}... Error: {parse_error}")
-                    continue
-            
-            # Преобразуем в список для фронта
-            result = []
-            for name, stat in process_stats.items():
-                result.append({
-                    "process": name,
-                    "connections": stat["connections"],
-                    "in_traffic": stat["bytes_recv"],
-                    "out_traffic": stat["bytes_sent"],
-                    "protocols": list(stat["protocols"]),
-                    "remote_ips_count": len(stat["remote_ips"])
-                })
-            
-            # Сортируем по общему трафику (убывание)
-            result.sort(key=lambda x: x["in_traffic"] + x["out_traffic"], reverse=True)
-            
-            return result
-            
-        elif device['type'] == 'mikrotik_routeros':
-            # Mikrotik RouterOS - используем connection tracking
-            command = '/ip firewall connection print'
-            output = await poll_device_via_ssh(netmiko_device, command)
-            
-            process_stats = {}
-            
-            for line in str(output).splitlines():
-                if 'connection' in line.lower() or not line.strip():
-                    continue
-                
-                try:
-                    parts = line.split()
-                    if len(parts) >= 4:
-                        # Парсим Mikrotik connection output
-                        protocol = parts[0] if parts else "unknown"
-                        src_addr = parts[1] if len(parts) > 1 else "unknown"
-                        dst_addr = parts[2] if len(parts) > 2 else "unknown"
-                        status = parts[3] if len(parts) > 3 else "unknown"
-                        
-                        process_name = "mikrotik_connection"
-                        
-                        if process_name not in process_stats:
-                            process_stats[process_name] = {
-                                "connections": 0,
-                                "bytes_recv": 0,
-                                "bytes_sent": 0,
-                                "protocols": set(),
-                                "remote_ips": set()
-                            }
-                        
-                        process_stats[process_name]["connections"] += 1
-                        process_stats[process_name]["protocols"].add(protocol.upper())
-                        process_stats[process_name]["remote_ips"].add(dst_addr)
-                        
-                except Exception as parse_error:
-                    continue
-            
-            # Преобразуем в список для фронта
-            result = []
-            for name, stat in process_stats.items():
-                result.append({
-                    "process": name,
-                    "connections": stat["connections"],
-                    "in_traffic": stat["bytes_recv"],
-                    "out_traffic": stat["bytes_sent"],
-                    "protocols": list(stat["protocols"]),
-                    "remote_ips_count": len(stat["remote_ips"])
-                })
-            
-            return result
-            
-        else:
-            # Для других устройств возвращаем базовую информацию
-            return [{
-                "process": "device_connection",
-                "connections": 0,
-                "in_traffic": 0,
-                "out_traffic": 0,
-                "protocols": [],
-                "remote_ips_count": 0
-            }]
-            
-    except Exception as e:
-        logging.error(f"[FIREWALL-LOG] Error getting device traffic: {e}")
-        raise HTTPException(status_code=500, detail=f"Error getting device traffic: {str(e)}") 
-
-@router.get("/api/device_nf_conntrack")
-async def api_get_device_nf_conntrack(device_id: int = Query(...)):
-    """API для получения данных nf_conntrack с устройства"""
+@router.get("/api/device_dns_rules")
+async def api_get_dns_rules(device_id: int = Query(...)):
+    """API для получения списка заблокированных доменов через dnsmasq"""
     try:
         device = await get_firewall_device_by_id(device_id)
         if not device:
             raise HTTPException(status_code=404, detail="Device not found")
         
+        if device['type'] != 'openwrt':
+            raise HTTPException(status_code=400, detail="Device type does not support DNS blocking")
+        
         netmiko_device = {
-            'device_type': 'linux' if device['type'] == 'openwrt' else device['type'],
+            'device_type': 'linux',
             'host': device['ip'],
             'username': device['username'],
             'password': device['password'],
         }
         
         try:
-            # Используем кэшированное SSH соединение
             ssh = get_ssh_connection(netmiko_device)
             
-            if device['type'] == 'mikrotik_routeros':
-                # Для Mikrotik RouterOS используем connection tracking
-                result = ssh.send_command("/ip firewall connection print", read_timeout=10)
-                lines = [line for line in result.splitlines() if line.strip() and not line.startswith('Flags:')]
-            else:
-                # Для Linux/OpenWrt используем nf_conntrack
-                result = ssh.send_command("cat /proc/net/nf_conntrack", read_timeout=10)
-                lines = [line for line in result.splitlines() if line.strip()]
+            # Читаем содержимое dnsmasq.conf
+            dnsmasq_config = ssh.send_command("cat /etc/dnsmasq.conf", read_timeout=10)
             
-            # НЕ закрываем соединение - оно остается в кэше для переиспользования
+            # Парсим заблокированные домены
+            domains = []
+            for line in dnsmasq_config.splitlines():
+                line = line.strip()
+                if line.startswith('address=/') and line.endswith('/0.0.0.0'):
+                    # Извлекаем домен из строки address=/domain.com/0.0.0.0
+                    domain = line[9:-8]  # Убираем 'address=/' и '/0.0.0.0'
+                    domains.append(domain)
             
             return {
                 "device_name": device['name'],
-                "device_ip": device['ip'],
-                "lines": lines,
-                "total_connections": len(lines),
+                "domains": domains,
+                "total_count": len(domains)
+            }
+            
+        except Exception as e:
+            logging.error(f"[DNS-LOG] Error getting DNS rules: {e}")
+            close_ssh_connection(device['ip'], device['username'])
+            raise HTTPException(status_code=500, detail=f"Error getting rules: {str(e)}")
+            
+    except Exception as e:
+        logging.error(f"[DNS-LOG] Error in api_get_dns_rules: {e}")
+        raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
+
+@router.post("/api/device_dns_block")
+async def api_add_dns_block(device_id: int = Query(...), request_data: dict = Body(...)):
+    """API для добавления блокировки домена через dnsmasq"""
+    try:
+        device = await get_firewall_device_by_id(device_id)
+        if not device:
+            raise HTTPException(status_code=404, detail="Device not found")
+        
+        if device['type'] != 'openwrt':
+            raise HTTPException(status_code=400, detail="Device type does not support DNS blocking")
+        
+        domain = request_data.get('domain', '').strip()
+        if not domain:
+            raise HTTPException(status_code=400, detail="Domain is required")
+        
+        netmiko_device = {
+            'device_type': 'linux',
+            'host': device['ip'],
+            'username': device['username'],
+            'password': device['password'],
+        }
+        
+        try:
+            ssh = get_ssh_connection(netmiko_device)
+            
+            # Добавляем домен в dnsmasq.conf
+            ssh.send_command(f"echo 'address=/{domain}/0.0.0.0' >> /etc/dnsmasq.conf", read_timeout=10)
+            
+            # Перезапускаем dnsmasq
+            try:
+                ssh.send_command("/etc/init.d/dnsmasq restart", read_timeout=30)
+            except:
+                try:
+                    ssh.send_command("/etc/init.d/dnsmasq reload", read_timeout=30)
+                except:
+                    pass
+            
+            return {
+                "success": True,
+                "message": f"Домен {domain} заблокирован",
+                "blocked_domain": domain,
                 "timestamp": datetime.now().isoformat()
             }
             
         except Exception as e:
-            logging.error(f"[FIREWALL-LOG] Error getting nf_conntrack from {device['ip']}: {e}")
-            # При ошибке закрываем соединение из кэша
+            logging.error(f"[DNS-LOG] Error blocking domain {domain}: {e}")
+            close_ssh_connection(device['ip'], device['username'])
+            raise HTTPException(status_code=500, detail=f"Error blocking domain: {str(e)}")
+            
+    except Exception as e:
+        logging.error(f"[DNS-LOG] Error in api_add_dns_block: {e}")
+        raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
+
+@router.post("/api/device_dns_unblock")
+async def api_remove_dns_block(device_id: int = Query(...), request_data: dict = Body(...)):
+    """API для удаления блокировки домена через dnsmasq"""
+    try:
+        device = await get_firewall_device_by_id(device_id)
+        if not device:
+            raise HTTPException(status_code=404, detail="Device not found")
+        
+        if device['type'] != 'openwrt':
+            raise HTTPException(status_code=400, detail="Device type does not support DNS blocking")
+        
+        domain = request_data.get('domain', '').strip()
+        if not domain:
+            raise HTTPException(status_code=400, detail="Domain is required")
+        
+        netmiko_device = {
+            'device_type': 'linux',
+            'host': device['ip'],
+            'username': device['username'],
+            'password': device['password'],
+        }
+        
+        try:
+            ssh = get_ssh_connection(netmiko_device)
+            
+            # Удаляем строку с доменом из dnsmasq.conf
+            # Экранируем точку в домене для sed
+            escaped_domain = domain.replace('.', '\.')
+            ssh.send_command(f"sed -i '/address=\\/{escaped_domain}\\/0\\.0\\.0\\.0/d' /etc/dnsmasq.conf", read_timeout=10)
+            
+            # Перезапускаем dnsmasq
+            try:
+                ssh.send_command("/etc/init.d/dnsmasq restart", read_timeout=30)
+            except:
+                try:
+                    ssh.send_command("/etc/init.d/dnsmasq reload", read_timeout=30)
+                except:
+                    pass
+            
+            return {
+                "success": True,
+                "message": f"Домен {domain} разблокирован",
+                "unblocked_domain": domain,
+                "timestamp": datetime.now().isoformat()
+            }
+            
+        except Exception as e:
+            logging.error(f"[DNS-LOG] Error unblocking domain {domain}: {e}")
+            close_ssh_connection(device['ip'], device['username'])
+            raise HTTPException(status_code=500, detail=f"Error unblocking domain: {str(e)}")
+            
+    except Exception as e:
+        logging.error(f"[DNS-LOG] Error in api_remove_dns_block: {e}")
+        raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
+
+@router.post("/api/device_dns_clear_all")
+async def api_clear_all_dns_blocks(device_id: int = Query(...)):
+    """API для удаления всех DNS блокировок"""
+    try:
+        device = await get_firewall_device_by_id(device_id)
+        if not device:
+            raise HTTPException(status_code=404, detail="Device not found")
+        
+        if device['type'] != 'openwrt':
+            raise HTTPException(status_code=400, detail="Device type does not support DNS blocking")
+        
+        netmiko_device = {
+            'device_type': 'linux',
+            'host': device['ip'],
+            'username': device['username'],
+            'password': device['password'],
+        }
+        
+        try:
+            ssh = get_ssh_connection(netmiko_device)
+            
+            # Удаляем все строки с address= из dnsmasq.conf
+            ssh.send_command("sed -i '/^address=\\/.*\\/0\\.0\\.0\\.0$/d' /etc/dnsmasq.conf", read_timeout=10)
+            
+            # Перезапускаем dnsmasq
+            try:
+                ssh.send_command("/etc/init.d/dnsmasq restart", read_timeout=30)
+            except:
+                try:
+                    ssh.send_command("/etc/init.d/dnsmasq reload", read_timeout=30)
+                except:
+                    pass
+            
+            return {
+                "success": True,
+                "message": "Все DNS блокировки удалены",
+                "timestamp": datetime.now().isoformat()
+            }
+            
+        except Exception as e:
+            logging.error(f"[DNS-LOG] Error clearing all DNS blocks: {e}")
+            close_ssh_connection(device['ip'], device['username'])
+            raise HTTPException(status_code=500, detail=f"Error clearing blocks: {str(e)}")
+            
+    except Exception as e:
+        logging.error(f"[DNS-LOG] Error in api_clear_all_dns_blocks: {e}")
+        raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
+
+# === IP БЛОКИРОВКА (IPTABLES) ===
+
+@router.get("/api/device_ip_rules")
+async def api_get_ip_rules(device_id: int = Query(...), direction: str = Query(None)):
+    """API для получения списка заблокированных IP через iptables"""
+    try:
+        device = await get_firewall_device_by_id(device_id)
+        if not device:
+            raise HTTPException(status_code=404, detail="Device not found")
+        
+        if device['type'] != 'openwrt':
+            raise HTTPException(status_code=400, detail="Device type does not support IP blocking")
+        
+        netmiko_device = {
+            'device_type': 'linux',
+            'host': device['ip'],
+            'username': device['username'],
+            'password': device['password'],
+        }
+        
+        try:
+            ssh = get_ssh_connection(netmiko_device)
+            
+            # Получаем заблокированные IP из iptables
+            try:
+                # Проверяем все цепочки: FORWARD, INPUT, OUTPUT
+                chains = ['FORWARD', 'INPUT', 'OUTPUT']
+                ips = []
+                raw_rules = []  # Для отладки
+                
+                for chain in chains:
+                    try:
+                        iptables_output = ssh.send_command(f"iptables -L {chain} -n -v --line-numbers", read_timeout=10)
+                        logging.info(f"[IP-LOG] Raw iptables output for {chain}: {iptables_output}")
+                        
+                        for line in iptables_output.splitlines():
+                            line = line.strip()
+                            if not line:  # Пропускаем пустые строки
+                                continue
+                                
+                            logging.info(f"[IP-LOG] Processing line in {chain}: {line}")
+                            raw_rules.append(f"{chain}: {line}")
+                            
+                            # Ищем все правила DROP (не только с комментарием blocked_ip)
+                            if 'DROP' in line:
+                                logging.info(f"[IP-LOG] Found DROP rule in {chain}: {line}")
+                                
+                                # Сначала пробуем найти IP в комментарии blocked_ip
+                                # Ищем комментарий в формате /* blocked_ip:IP:PORT:direction */ или /* blocked_ip:IP:direction */
+                                comment_match = re.search(r'blocked_ip:(\d+\.\d+\.\d+\.\d+)(?::(\d+))?(?::(in|out))?', line)
+                                if comment_match:
+                                    ip = comment_match.group(1)
+                                    port = comment_match.group(2) if comment_match.group(2) else None
+                                    direction = comment_match.group(3) if comment_match.group(3) else None
+                                    
+                                    # Проверяем, что IP валидный (только числовой IP, не DNS-имя)
+                                    if re.match(r'^\d+\.\d+\.\d+\.\d+$', ip) and not re.search(r'[a-zA-Z]', ip):
+                                        # Формируем информацию о блокировке с направлением
+                                        direction_text = {
+                                            'in': 'входящий',
+                                            'out': 'исходящий',
+                                            'both': 'весь трафик'
+                                        }.get(direction, 'неизвестно')
+                                        
+                                        if port:
+                                            ip_info = f"{ip}:{port} ({direction_text})"
+                                        else:
+                                            ip_info = f"{ip} ({direction_text})"
+                                        
+                                        # Добавляем IP с информацией о направлении
+                                        ips.append(ip_info)
+                                        logging.info(f"[IP-LOG] Added IP from comment: {ip_info}")
+                                        continue  # Переходим к следующей строке, так как уже нашли IP
+                                
+                                # Если нет комментария, ищем IP в самой строке правила
+                                # Улучшенный поиск IP-адресов в строке
+                                ip_matches = re.findall(r'\b(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\b', line)
+                                logging.info(f"[IP-LOG] Found IP matches in line: {ip_matches}")
+                                
+                                for ip in ip_matches:
+                                    # Проверяем, что это не служебные IP и что это числовой IP
+                                    if (ip != '0.0.0.0' and ip != '127.0.0.1' and 
+                                        ip != '255.255.255.255' and ip != '224.0.0.0' and
+                                        re.match(r'^\d+\.\d+\.\d+\.\d+$', ip) and 
+                                        not re.search(r'[a-zA-Z]', ip)):
+                                        
+                                        # Определяем направление по содержимому строки и цепочке
+                                        rule_direction = 'неизвестно'
+                                        if chain == 'INPUT' or '-d ' + ip in line:
+                                            rule_direction = 'входящий'
+                                        elif chain == 'OUTPUT' or '-s ' + ip in line:
+                                            rule_direction = 'исходящий'
+                                        elif chain == 'FORWARD':
+                                            if '-d ' + ip in line:
+                                                rule_direction = 'входящий'
+                                            elif '-s ' + ip in line:
+                                                rule_direction = 'исходящий'
+                                        
+                                        ip_info = f"{ip} ({rule_direction})"
+                                        ips.append(ip_info)
+                                        logging.info(f"[IP-LOG] Added IP from rule: {ip_info}")
+                    except Exception as chain_error:
+                        logging.error(f"[IP-LOG] Error processing chain {chain}: {chain_error}")
+                        continue
+                
+                # Убираем дубликаты
+                ips = list(set(ips))
+                
+                # Фильтруем по направлению, если указано
+                if direction:
+                    filter_direction = direction.lower()
+                    filtered_ips = []
+                    for ip_info in ips:
+                        if filter_direction == 'in' and 'входящий' in ip_info:
+                            filtered_ips.append(ip_info)
+                        elif filter_direction == 'out' and 'исходящий' in ip_info:
+                            filtered_ips.append(ip_info)
+                        elif filter_direction == 'both':
+                            # Для 'both' показываем все IP, но группируем по направлению
+                            filtered_ips.append(ip_info)
+                    ips = filtered_ips
+                
+                logging.info(f"[IP-LOG] Total blocked IPs found: {len(ips)} (filtered by direction: {filter_direction if 'filter_direction' in locals() else direction})")
+                logging.info(f"[IP-LOG] All found IPs: {ips}")
+                logging.info(f"[IP-LOG] Raw rules processed: {raw_rules}")
+                
+                return {
+                    "device_name": device['name'],
+                    "ips": ips,
+                    "total_count": len(ips),
+                    "filter_direction": filter_direction if 'filter_direction' in locals() else direction,
+                    "debug_info": {
+                        "raw_rules_count": len(raw_rules),
+                        "raw_rules_sample": raw_rules[:5] if raw_rules else []  # Первые 5 правил для отладки
+                    }
+                }
+                
+            except Exception as e:
+                logging.error(f"[IP-LOG] Error getting IP rules: {e}")
+                return {
+                    "device_name": device['name'],
+                    "ips": [],
+                    "error": f"Ошибка получения правил: {str(e)}",
+                    "debug_info": {
+                        "error_details": str(e),
+                        "raw_rules_count": len(raw_rules),
+                        "raw_rules_sample": raw_rules[:5] if raw_rules else []
+                    }
+                }
+                
+        except Exception as e:
+            logging.error(f"[IP-LOG] Error connecting to device: {e}")
             close_ssh_connection(device['ip'], device['username'])
             raise HTTPException(status_code=500, detail=f"Error connecting to device: {str(e)}")
             
     except Exception as e:
-        logging.error(f"[FIREWALL-LOG] Error in api_get_device_nf_conntrack: {e}")
-        raise HTTPException(status_code=500, detail=f"Error: {str(e)}") 
+        logging.error(f"[IP-LOG] Error in api_get_ip_rules: {e}")
+        raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
 
-def get_all_network_interfaces_info():
-    """
-    Получает информацию о всех сетевых интерфейсах на локальной машине.
-    """
-    interfaces = []
+@router.get("/api/device_iptables_raw")
+async def api_get_iptables_raw(device_id: int = Query(...)):
+    """API для получения сырых данных iptables без фильтрации"""
     try:
-        # Используем psutil для получения информации о сетевых интерфейсах
-        import psutil
-        for interface, addrs in psutil.net_if_addrs().items():
-            if addrs:
-                ipv4_info = next((addr for addr in addrs if addr.family == psutil.AF_INET), None)
-                ipv6_info = next((addr for addr in addrs if addr.family == psutil.AF_INET6), None)
-                
-                if ipv4_info:
-                    interfaces.append({
-                        "interface": interface,
-                        "status": "UP",
-                        "ipv4": ipv4_info.address,
-                        "ipv6": ipv6_info.address if ipv6_info else "-",
-                        "mac": psutil.net_if_stats()[interface].mac if interface in psutil.net_if_stats() else "-",
-                        "mtu": psutil.net_if_stats()[interface].mtu if interface in psutil.net_if_stats() else "-",
-                        "rx_bytes": psutil.net_if_stats()[interface].bytes_recv if interface in psutil.net_if_stats() else 0,
-                        "tx_bytes": psutil.net_if_stats()[interface].bytes_sent if interface in psutil.net_if_stats() else 0
-                    })
-                elif ipv6_info:
-                    interfaces.append({
-                        "interface": interface,
-                        "status": "UP",
-                        "ipv4": "-",
-                        "ipv6": ipv6_info.address,
-                        "mac": psutil.net_if_stats()[interface].mac if interface in psutil.net_if_stats() else "-",
-                        "mtu": psutil.net_if_stats()[interface].mtu if interface in psutil.net_if_stats() else "-",
-                        "rx_bytes": psutil.net_if_stats()[interface].bytes_recv if interface in psutil.net_if_stats() else 0,
-                        "tx_bytes": psutil.net_if_stats()[interface].bytes_sent if interface in psutil.net_if_stats() else 0
-                    })
-                else:
-                    interfaces.append({
-                        "interface": interface,
-                        "status": "DOWN",
-                        "ipv4": "-",
-                        "ipv6": "-",
-                        "mac": "-",
-                        "mtu": "-",
-                        "rx_bytes": 0,
-                        "tx_bytes": 0
-                    })
+        device = await get_firewall_device_by_id(device_id)
+        if not device:
+            raise HTTPException(status_code=404, detail="Device not found")
+        
+        if device['type'] != 'openwrt':
+            raise HTTPException(status_code=400, detail="Device type does not support IP blocking")
+        
+        netmiko_device = {
+            'device_type': 'linux',
+            'host': device['ip'],
+            'username': device['username'],
+            'password': device['password'],
+        }
+        
+        try:
+            ssh = get_ssh_connection(netmiko_device)
+            
+            # Получаем все правила iptables без фильтрации
+            chains = ['FORWARD', 'INPUT', 'OUTPUT']
+            all_rules = {}
+            
+            for chain in chains:
+                try:
+                    iptables_output = ssh.send_command(f"iptables -L {chain} -n -v --line-numbers", read_timeout=10)
+                    all_rules[chain] = iptables_output.splitlines()
+                    logging.info(f"[IPTABLES-RAW] Chain {chain} rules: {len(all_rules[chain])} lines")
+                except Exception as e:
+                    logging.error(f"[IPTABLES-RAW] Error getting {chain} rules: {e}")
+                    all_rules[chain] = [f"Error: {str(e)}"]
+            
+            return {
+                "device_name": device['name'],
+                "all_rules": all_rules,
+                "total_chains": len(chains),
+                "timestamp": datetime.now().isoformat()
+            }
+            
+        except Exception as e:
+            logging.error(f"[IPTABLES-RAW] Error connecting to device: {e}")
+            close_ssh_connection(device['ip'], device['username'])
+            raise HTTPException(status_code=500, detail=f"Error connecting to device: {str(e)}")
+            
     except Exception as e:
-        logging.error(f"[FIREWALL-LOG] Error getting local network interfaces: {e}")
-    return interfaces 
+        logging.error(f"[IPTABLES-RAW] Error in api_get_iptables_raw: {e}")
+        raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
+
+@router.post("/api/device_ip_block")
+async def api_add_ip_block(device_id: int = Query(...), request_data: dict = Body(...)):
+    """API для добавления блокировки IP через iptables"""
+    try:
+        device = await get_firewall_device_by_id(device_id)
+        if not device:
+            raise HTTPException(status_code=404, detail="Device not found")
+        
+        if device['type'] != 'openwrt':
+            raise HTTPException(status_code=400, detail="Device type does not support IP blocking")
+        
+        ip = request_data.get('ip', '').strip()
+        print(ip)
+        port = request_data.get('port', '').strip()
+        direction = request_data.get('direction', 'both').strip().lower()  # 'in', 'out', 'both'
+        
+        logging.info(f"[IP-LOG] Received request to block IP: '{ip}', port: '{port}', direction: '{direction}'")
+        logging.info(f"[IP-LOG] Request data: {request_data}")
+        
+        if not ip:
+            raise HTTPException(status_code=400, detail="IP address is required")
+        
+        # Принудительная проверка, что IP - это числовой адрес, а не DNS-имя
+        if not re.match(r'^\d+\.\d+\.\d+\.\d+$', ip):
+            logging.error(f"[IP-LOG] Invalid IP format: '{ip}'")
+            raise HTTPException(status_code=400, detail="Invalid IP address format. Only numeric IP addresses are allowed.")
+        
+        # Дополнительная проверка на DNS-имена
+        if re.search(r'[a-zA-Z]', ip):
+            logging.error(f"[IP-LOG] DNS name detected: '{ip}'")
+            raise HTTPException(status_code=400, detail="DNS names are not allowed. Please use numeric IP addresses only.")
+        
+        logging.info(f"[IP-LOG] IP validation passed: '{ip}'")
+        
+        netmiko_device = {
+            'device_type': 'linux',
+            'host': device['ip'],
+            'username': device['username'],
+            'password': device['password'],
+        }
+        
+        try:
+            ssh = get_ssh_connection(netmiko_device)
+            
+            # Формируем команды iptables в зависимости от направления
+            
+            if port:
+                # Блокируем конкретный порт
+                if direction in ['in', 'both']:
+                    # Блокируем входящий трафик к IP на указанном порту
+                    cmd1 = f"iptables -A FORWARD -d {ip} -p tcp --dport {port} -j DROP -m comment --comment 'blocked_ip:{ip}:{port}:in'"
+                    ssh.send_command(cmd1, read_timeout=10)
+                    logging.info(f"[IP-LOG] Added IN rule for IP {ip}:{port} with comment: blocked_ip:{ip}:{port}:in")
+                
+                if direction in ['out', 'both']:
+                    # Блокируем исходящий трафик от IP с указанного порта
+                    cmd2 = f"iptables -A FORWARD -s {ip} -p tcp --sport {port} -j DROP -m comment --comment 'blocked_ip:{ip}:{port}:out'"
+                    ssh.send_command(cmd2, read_timeout=10)
+                    logging.info(f"[IP-LOG] Added OUT rule for IP {ip}:{port} with comment: blocked_ip:{ip}:{port}:out")
+            else:
+                # Блокируем весь трафик
+                if direction in ['in', 'both']:
+                    # Блокируем весь входящий трафик к IP (FORWARD + INPUT)
+                    cmd1 = f"iptables -A FORWARD -d {ip} -j DROP -m comment --comment 'blocked_ip:{ip}:in'"
+                    ssh.send_command(cmd1, read_timeout=10)
+                    cmd1_input = f"iptables -A INPUT -d {ip} -j DROP -m comment --comment 'blocked_ip:{ip}:in'"
+                    ssh.send_command(cmd1_input, read_timeout=10)
+                    logging.info(f"[IP-LOG] Added IN rules for IP {ip} (FORWARD + INPUT)")
+                
+                if direction in ['out', 'both']:
+                    # Блокируем весь исходящий трафик от IP (FORWARD + OUTPUT)
+                    cmd2 = f"iptables -A FORWARD -s {ip} -j DROP -m comment --comment 'blocked_ip:{ip}:out'"
+                    ssh.send_command(cmd2, read_timeout=10)
+                    cmd2_output = f"iptables -A OUTPUT -d {ip} -j DROP -m comment --comment 'blocked_ip:{ip}:out'"
+                    ssh.send_command(cmd2_output, read_timeout=10)
+                    logging.info(f"[IP-LOG] Added OUT rules for IP {ip} (FORWARD + OUTPUT)")
+            
+            # Формируем сообщение в зависимости от направления
+            direction_text = {
+                'in': 'входящий трафик',
+                'out': 'исходящий трафик', 
+                'both': 'весь трафик'
+            }.get(direction, 'весь трафик')
+            
+            return {
+                "success": True,
+                "message": f"IP {ip}" + (f":{port}" if port else "") + f" заблокирован ({direction_text})",
+                "blocked_ip": ip,
+                "blocked_port": port,
+                "direction": direction,
+                "timestamp": datetime.now().isoformat()
+            }
+            
+        except Exception as e:
+            logging.error(f"[IP-LOG] Error blocking IP {ip}: {e}")
+            close_ssh_connection(device['ip'], device['username'])
+            raise HTTPException(status_code=500, detail=f"Error blocking IP: {str(e)}")
+            
+    except Exception as e:
+        logging.error(f"[IP-LOG] Error in api_add_ip_block: {e}")
+        raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
+
+@router.post("/api/device_ip_unblock")
+async def api_remove_ip_block(device_id: int = Query(...), request_data: dict = Body(...)):
+    """API для удаления блокировки IP через iptables"""
+    try:
+        device = await get_firewall_device_by_id(device_id)
+        if not device:
+            raise HTTPException(status_code=404, detail="Device not found")
+        
+        if device['type'] != 'openwrt':
+            raise HTTPException(status_code=400, detail="Device type does not support IP blocking")
+        
+        ip = request_data.get('ip', '').strip()
+        
+        logging.info(f"[IP-LOG] Received request to unblock IP: '{ip}'")
+        logging.info(f"[IP-LOG] Request data: {request_data}")
+        
+        if not ip:
+            raise HTTPException(status_code=400, detail="IP address is required")
+        
+        # Принудительная проверка, что IP - это числовой адрес, а не DNS-имя
+        if not re.match(r'^\d+\.\d+\.\d+\.\d+$', ip):
+            logging.error(f"[IP-LOG] Invalid IP format: '{ip}'")
+            raise HTTPException(status_code=400, detail="Invalid IP address format. Only numeric IP addresses are allowed.")
+        
+        # Дополнительная проверка на DNS-имена
+        if re.search(r'[a-zA-Z]', ip):
+            logging.error(f"[IP-LOG] DNS name detected: '{ip}'")
+            raise HTTPException(status_code=400, detail="DNS names are not allowed. Please use numeric IP addresses only.")
+        
+        logging.info(f"[IP-LOG] IP validation passed: '{ip}'")
+        
+        netmiko_device = {
+            'device_type': 'linux',
+            'host': device['ip'],
+            'username': device['username'],
+            'password': device['password'],
+        }
+        
+        try:
+            ssh = get_ssh_connection(netmiko_device)
+            
+            # Удаляем правила iptables для этого IP из всех цепочек
+            
+            # Проверяем все цепочки: FORWARD, INPUT, OUTPUT
+            chains = ['FORWARD', 'INPUT', 'OUTPUT']
+            total_removed = 0
+            
+            for chain in chains:
+                iptables_output = ssh.send_command(f"iptables -L {chain} -n -v --line-numbers", read_timeout=10)
+                logging.info(f"[IP-LOG] Looking for IP {ip} in {chain} chain")
+            
+                rule_numbers = []
+                for line in iptables_output.splitlines():
+                    line = line.strip()
+                    logging.info(f"[IP-LOG] Checking line in {chain}: {line}")
+                    
+                    # Ищем все правила DROP с нужным IP (не только с комментарием blocked_ip)
+                    if 'DROP' in line:
+                        # Проверяем, есть ли IP в строке правила
+                        ip_matches = re.findall(r'\b(\d+\.\d+\.\d+\.\d+)\b', line)
+                        for rule_ip in ip_matches:
+                            # Проверяем, что это числовой IP, а не DNS-имя
+                            if rule_ip == ip and re.match(r'^\d+\.\d+\.\d+\.\d+$', rule_ip) and not re.search(r'[a-zA-Z]', rule_ip):
+                                # Извлекаем номер строки
+                                match = re.search(r'^(\d+)', line)
+                                if match:
+                                    rule_numbers.append((chain, match.group(1)))
+                                    logging.info(f"[IP-LOG] Found rule number {match.group(1)} for IP {ip} in {chain}")
+                                    break  # Нашли IP в этом правиле, переходим к следующему правилу
+                
+                if rule_numbers:
+                    # Удаляем правила в обратном порядке (чтобы номера не сбились)
+                    rule_numbers.reverse()
+                    for chain_name, rule_num in rule_numbers:
+                        try:
+                            ssh.send_command(f"iptables -D {chain_name} {rule_num}", read_timeout=10)
+                            logging.info(f"[IP-LOG] Removed rule {rule_num} from {chain_name}")
+                            total_removed += 1
+                        except Exception as e:
+                            logging.error(f"[IP-LOG] Error removing rule {rule_num} from {chain_name}: {e}")
+            
+            if total_removed > 0:
+                message = f"IP {ip} разблокирован (удалено {total_removed} правил)"
+            else:
+                message = f"IP {ip} не найден в правилах блокировки"
+                logging.warning(f"[IP-LOG] IP {ip} not found in rules")
+            
+            return {
+                "success": True,
+                "message": message,
+                "unblocked_ip": ip,
+                "timestamp": datetime.now().isoformat()
+            }
+            
+        except Exception as e:
+            logging.error(f"[IP-LOG] Error unblocking IP {ip}: {e}")
+            close_ssh_connection(device['ip'], device['username'])
+            raise HTTPException(status_code=500, detail=f"Error unblocking IP: {str(e)}")
+            
+    except Exception as e:
+        logging.error(f"[IP-LOG] Error in api_remove_ip_block: {e}")
+        raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
+
+
+
+@router.post("/api/device_ip_clear_all")
+async def api_clear_all_ip_blocks(device_id: int = Query(...)):
+    """API для удаления всех IP блокировок"""
+    try:
+        device = await get_firewall_device_by_id(device_id)
+        if not device:
+            raise HTTPException(status_code=404, detail="Device not found")
+        
+        if device['type'] != 'openwrt':
+            raise HTTPException(status_code=400, detail="Device type does not support IP blocking")
+        
+        netmiko_device = {
+            'device_type': 'linux',
+            'host': device['ip'],
+            'username': device['username'],
+            'password': device['password'],
+        }
+        
+        try:
+            ssh = get_ssh_connection(netmiko_device)
+            
+
+            
+            # Получаем все правила DROP из всех цепочек
+            chains = ['FORWARD', 'INPUT', 'OUTPUT']
+            total_removed = 0
+            
+            for chain in chains:
+                iptables_output = ssh.send_command(f"iptables -L {chain} -n -v --line-numbers", read_timeout=10)
+                rule_numbers = []
+                
+                for line in iptables_output.splitlines():
+                    line = line.strip()
+                    if 'DROP' in line:
+                        # Извлекаем номер строки
+                        match = re.search(r'^(\d+)', line)
+                        if match:
+                            rule_numbers.append(match.group(1))
+                            logging.info(f"[IP-LOG] Found DROP rule number {match.group(1)} in {chain}: {line}")
+                
+                # Удаляем правила в обратном порядке (чтобы номера не сбились)
+                rule_numbers.reverse()
+                for rule_num in rule_numbers:
+                    try:
+                        ssh.send_command(f"iptables -D {chain} {rule_num}", read_timeout=10)
+                        total_removed += 1
+                    except:
+                        pass
+            
+            return {
+                "success": True,
+                "message": f"Удалено {total_removed} IP блокировок",
+                "removed_count": total_removed,
+                "timestamp": datetime.now().isoformat()
+            }
+            
+        except Exception as e:
+            logging.error(f"[IP-LOG] Error clearing all IP blocks: {e}")
+            close_ssh_connection(device['ip'], device['username'])
+            raise HTTPException(status_code=500, detail=f"Error clearing blocks: {str(e)}")
+            
+    except Exception as e:
+        logging.error(f"[IP-LOG] Error in api_clear_all_ip_blocks: {e}")
+        raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
+
+# === УПРАВЛЕНИЕ УСТРОЙСТВАМИ ===
+
+@router.get("/api/firewall_devices", response_model=List[FirewallDeviceModel])
+async def api_get_devices():
+    """API для получения списка устройств"""
+    from .database import get_all_firewall_devices
+    devices = await get_all_firewall_devices()
+    logging.info(f"[API-LOG] Returning {len(devices)} devices")
+    for i, device in enumerate(devices):
+        logging.info(f"[API-LOG] Device {i+1}: {device}")
+    result = [FirewallDeviceModel(**device) for device in devices]
+    logging.info(f"[API-LOG] Final result: {result}")
+    return result
+
+@router.get("/api/firewall_devices_raw")
+async def api_get_devices_raw():
+    """API для получения сырых данных устройств без обновления статуса"""
+    import asyncpg
+    from .db_config import DB_USER, DB_PASSWORD, DB_NAME, DB_HOST, DB_PORT
+    
+    try:
+        conn = await asyncpg.connect(
+            user=DB_USER,
+            password=DB_PASSWORD,
+            database=DB_NAME,
+            host=DB_HOST,
+            port=DB_PORT
+        )
+        rows = await conn.fetch('SELECT * FROM firewall_devices ORDER BY id')
+        await conn.close()
+        
+        devices = [dict(row) for row in rows]
+        logging.info(f"[API-LOG] Raw devices from DB: {devices}")
+        return {"devices": devices, "count": len(devices)}
+        
+    except Exception as e:
+        logging.error(f"[API-LOG] Error getting raw devices: {e}")
+        return {"error": str(e), "devices": [], "count": 0}
+
+@router.post("/api/firewall_devices")
+async def api_add_device(device: FirewallDeviceCreate):
+    """API для добавления устройства"""
+    from .database import add_firewall_device
+    await add_firewall_device(device)
+    return {"message": "Device added successfully"}
+
+@router.delete("/api/firewall_devices/{device_id}")
+async def api_delete_device(device_id: int):
+    """API для удаления устройства"""
+    from .database import delete_firewall_device
+    await delete_firewall_device(device_id)
+    return {"message": "Device deleted successfully"}
+
+ 

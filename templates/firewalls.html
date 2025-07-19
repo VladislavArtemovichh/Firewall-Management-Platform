@@ -410,6 +410,8 @@
             {% if not is_readonly %}
             <button onclick="showAddDeviceForm()" style="margin-top: 12px; padding: 8px 16px; background-color: #4a7dff; color: white; border: none; border-radius: 4px; cursor: pointer;">Добавить устройство</button>
             {% endif %}
+            <button onclick="testRawDevices()" style="margin-top: 12px; margin-left: 8px; padding: 8px 16px; background-color: #38a169; color: white; border: none; border-radius: 4px; cursor: pointer;">Тест данных</button>
+            <button onclick="forceRefreshDevices()" style="margin-top: 12px; margin-left: 8px; padding: 8px 16px; background-color: #e53e3e; color: white; border: none; border-radius: 4px; cursor: pointer;">Обновить</button>
             <div id="add-device-form" style="display:none; margin-top: 16px; padding: 16px; background: #f7fafc; border-radius: 8px;">
                 <input type="text" id="new-device-name" placeholder="Имя устройства" style="margin-right:8px; padding: 6px 8px; border: 1px solid #ddd; border-radius: 4px;" {% if is_readonly %}disabled{% endif %}>
                 <input type="text" id="new-device-ip" placeholder="IP-адрес" style="margin-right:8px; padding: 6px 8px; border: 1px solid #ddd; border-radius: 4px;" {% if is_readonly %}disabled{% endif %}>
@@ -565,14 +567,17 @@
     window.firewallDevicesCache = null;
     async function getFirewallDevicesCached(forceReload = false) {
         if (!forceReload && window.firewallDevicesCache !== null) {
+            console.log('Using cached devices data:', window.firewallDevicesCache);
             return window.firewallDevicesCache;
         }
         try {
             const resp = await fetch('/api/firewall_devices');
             const data = await resp.json();
+            console.log('Received devices data from server:', data);
             window.firewallDevicesCache = data;
             return data;
         } catch (e) {
+            console.error('Error fetching devices:', e);
             window.firewallDevicesCache = [];
             return [];
         }
@@ -594,9 +599,14 @@
             tbody.innerHTML = '';
             for (const dev of data) {
                 const statusClass = dev.status === 'Онлайн' ? 'color: #38a169;' : 'color: #e53e3e;';
+                
+                // Дополнительная проверка и логирование IP-адреса
+                const ipAddress = dev.ip || dev.ip_address || '-';
+                console.log(`Device ${dev.name} (ID: ${dev.id}): IP = "${ipAddress}" (type: ${typeof ipAddress})`);
+                
                 tbody.innerHTML += `<tr>
                     <td>${dev.name || '-'}</td>
-                    <td>${dev.ip || '-'}</td>
+                    <td>${ipAddress}</td>
                     <td>${dev.device_type || dev.type || '-'}</td>
                     <td style="${statusClass}">${dev.status || '-'}</td>
                     <td>${dev.last_poll || '-'}</td>
@@ -684,6 +694,52 @@
             }
         } catch (e) {
             alert('Ошибка при удалении: ' + e.message);
+        }
+    }
+
+    // Тестирование сырых данных устройств
+    async function testRawDevices() {
+        try {
+            console.log('Testing raw devices data...');
+            const resp = await fetch('/api/firewall_devices_raw');
+            const data = await resp.json();
+            console.log('Raw devices data:', data);
+            
+            if (data.error) {
+                alert('Ошибка получения данных: ' + data.error);
+                return;
+            }
+            
+            let message = `Найдено устройств: ${data.count}\n\n`;
+            for (const device of data.devices) {
+                message += `ID: ${device.id}\n`;
+                message += `Имя: ${device.name}\n`;
+                message += `IP: ${device.ip}\n`;
+                message += `Тип: ${device.type}\n`;
+                message += `Статус: ${device.status || 'Неизвестно'}\n`;
+                message += `Последний опрос: ${device.last_poll || '-'}\n`;
+                message += '-'.repeat(30) + '\n';
+            }
+            
+            alert(message);
+        } catch (e) {
+            console.error('Error testing raw devices:', e);
+            alert('Ошибка тестирования: ' + e.message);
+        }
+    }
+
+    // Принудительное обновление устройств
+    async function forceRefreshDevices() {
+        try {
+            console.log('Force refreshing devices...');
+            // Очищаем кэш
+            window.firewallDevicesCache = null;
+            // Загружаем устройства с принудительным обновлением
+            await loadFirewallDevices(true);
+            alert('Устройства обновлены!');
+        } catch (e) {
+            console.error('Error force refreshing devices:', e);
+            alert('Ошибка обновления: ' + e.message);
         }
     }
 
@@ -1163,13 +1219,14 @@
             let html = '';
             for (const dev of data) {
                 const statusColor = dev.status === 'Онлайн' ? '#38a169' : '#e53e3e';
+                const displayName = dev.name || dev.ip || `Устройство ${dev.id}`;
                 html += `
                     <button onclick="showDeviceConnections('${dev.id}', '${dev.name}')" 
                             style="padding: 8px 12px; background: white; border: 1px solid #e2e8f0; border-radius: 6px; cursor: pointer; display: flex; align-items: center; gap: 6px; font-size: 13px; transition: all 0.2s;"
                             onmouseover="this.style.background='#f7fafc'" 
                             onmouseout="this.style.background='white'">
                         <span style="width: 8px; height: 8px; border-radius: 50%; background: ${statusColor};"></span>
-                        <span>${dev.name || dev.ip}</span>
+                        <span>${displayName}</span>
                     </button>
                 `;
             }
@@ -1187,7 +1244,8 @@
             select.innerHTML = '<option value="">-- Выберите устройство --</option>';
             for (const dev of data) {
                 const statusText = dev.status === 'Онлайн' ? ' (Онлайн)' : ' (Оффлайн)';
-                select.innerHTML += `<option value="${dev.id}">${dev.name || dev.ip}${statusText}</option>`;
+                const displayName = dev.name || dev.ip || `Устройство ${dev.id}`;
+                select.innerHTML += `<option value="${dev.id}">${displayName}${statusText}</option>`;
             }
         } catch (e) {
             select.innerHTML = '<option value="">Ошибка загрузки</option>';
@@ -1281,7 +1339,8 @@
             select.innerHTML = '<option value="">-- Выберите устройство --</option>';
             for (const dev of data) {
                 const statusText = dev.status === 'Онлайн' ? ' (Онлайн)' : ' (Оффлайн)';
-                select.innerHTML += `<option value="${dev.id}">${dev.name || dev.ip}${statusText}</option>`;
+                const displayName = dev.name || dev.ip || `Устройство ${dev.id}`;
+                select.innerHTML += `<option value="${dev.id}">${displayName}${statusText}</option>`;
             }
         } catch (e) {
             select.innerHTML = '<option value="">Ошибка загрузки</option>';
@@ -1364,7 +1423,8 @@
             const data = await getFirewallDevicesCached(forceReload);
             select.innerHTML = '<option value="">-- Выберите устройство --</option>';
             for (const dev of data) {
-                select.innerHTML += `<option value="${dev.id}">${dev.name || dev.ip || dev.id}</option>`;
+                const displayName = dev.name || dev.ip || `Устройство ${dev.id}`;
+                select.innerHTML += `<option value="${dev.id}">${displayName}</option>`;
             }
             if (data.length > 0) {
                 select.value = data[0].id;
@@ -1514,7 +1574,8 @@
             const data = await getFirewallDevicesCached(forceReload);
             select.innerHTML = '<option value="">-- Выберите устройство --</option>';
             for (const dev of data) {
-                select.innerHTML += `<option value="${dev.id}">${dev.name || dev.ip || dev.id}</option>`;
+                const displayName = dev.name || dev.ip || `Устройство ${dev.id}`;
+                select.innerHTML += `<option value="${dev.id}">${displayName}</option>`;
             }
         } catch (e) {
             select.innerHTML = '<option value="">Ошибка загрузки</option>';

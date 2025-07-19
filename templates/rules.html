@@ -4,8 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Правила межсетевого экрана</title>
-    <!-- Если у вас нет favicon.png, добавьте его в папку static или уберите строку ниже -->
-    <!--<link rel="icon" type="image/png" href="/static/favicon.png">-->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         :root {
@@ -17,6 +15,7 @@
             --dark: #1a202c;
             --light: #f7fafc;
         }
+        
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background-color: #edf2f7;
@@ -24,6 +23,7 @@
             margin: 0;
             padding: 0;
         }
+        
         .main-content {
             max-width: 1200px;
             margin: 40px auto 0 auto;
@@ -32,6 +32,7 @@
             border-radius: 12px;
             box-shadow: 0 4px 16px rgba(0,0,0,0.07);
         }
+        
         .header {
             display: flex;
             justify-content: space-between;
@@ -40,608 +41,1922 @@
             padding-bottom: 15px;
             border-bottom: 1px solid #cbd5e0;
         }
+        
         .header-title {
             font-size: 2rem;
             color: var(--primary);
         }
-        .btn {
-            padding: 8px 16px;
-            border-radius: 5px;
+        
+        /* Вкладки */
+        .tab-container {
+            margin-top: 20px;
+        }
+        
+        .tab-buttons {
+            display: flex;
+            border-bottom: 1px solid #e2e8f0;
+            margin-bottom: 20px;
+        }
+        
+        .tab-button {
+            padding: 12px 24px;
             border: none;
+            background: #f7fafc;
+            color: #4a5568;
             cursor: pointer;
+            border-radius: 8px 8px 0 0;
+            font-weight: 500;
+            transition: all 0.3s;
+            margin-right: 4px;
+        }
+        
+        .tab-button.active {
+            background: white;
+            color: var(--primary);
+            border-bottom: 3px solid var(--primary);
+        }
+        
+        .tab-button:hover {
+            background: #edf2f7;
+        }
+        
+        .tab-content {
+            display: none;
+            padding: 20px 0;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        /* Формы и элементы управления */
+        .input-group {
+            margin-bottom: 16px;
+        }
+        
+        .input-group label {
+            display: block;
+            margin-bottom: 8px;
             font-weight: 600;
+            color: #4a5568;
+        }
+        
+        .form-control {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+            box-sizing: border-box;
+        }
+        
+        .form-control:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(26, 58, 95, 0.1);
+        }
+        
+        .button-group {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        
+        .action-button {
+            padding: 10px 16px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.3s;
             display: flex;
             align-items: center;
             gap: 8px;
-            transition: all 0.3s;
+            font-size: 14px;
         }
-        .btn-primary {
+        
+        .action-button:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        
+        .action-button.primary {
             background: var(--primary);
             color: white;
         }
-        .btn-danger {
+        
+        .action-button.primary:hover {
+            background: #2563eb;
+        }
+        
+        .action-button.danger {
             background: var(--danger);
             color: white;
         }
-        .btn-warning {
-            background: var(--warning);
-            color: white;
+        
+        .action-button.danger:hover {
+            background: #b91c1c;
         }
-        .btn-success {
+        
+        .action-button.success {
             background: var(--success);
             color: white;
         }
-        .btn:hover {
-            opacity: 0.9;
-            transform: translateY(-2px);
+        
+        .action-button.success:hover {
+            background: #2f855a;
         }
-        .rules-table {
-            width: 100%;
-            border-collapse: collapse;
-            background: white;
-            border-radius: 10px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
-            margin-bottom: 30px;
+        
+        /* Результаты */
+        .result-area {
+            margin-top: 20px;
+            padding: 16px;
+            border-radius: 8px;
+            border: 1px solid #e2e8f0;
+            background: #f8fafc;
+            min-height: 50px;
         }
-        .rules-table th, .rules-table td {
-            padding: 12px 15px;
-            border-bottom: 1px solid #edf2f7;
-            text-align: left;
+        
+        .result-area.success {
+            background: #f0fff4;
+            border-color: #9ae6b4;
+            color: #22543d;
         }
-        .rules-table th {
-            background: #f7fafc;
-            color: #4a5568;
-            font-weight: 600;
+        
+        .result-area.error {
+            background: #fed7d7;
+            border-color: #feb2b2;
+            color: #742a2a;
         }
-        .rules-table tr:last-child td {
-            border-bottom: none;
-        }
-        .switch {
-            position: relative;
-            display: inline-block;
-            width: 40px;
-            height: 22px;
-        }
-        .switch input {display:none;}
-        .slider {
-            position: absolute;
-            cursor: pointer;
-            top: 0; left: 0; right: 0; bottom: 0;
-            background-color: #ccc;
-            transition: .4s;
-            border-radius: 22px;
-        }
-        .slider:before {
-            position: absolute;
-            content: "";
-            height: 18px;
-            width: 18px;
-            left: 2px;
-            bottom: 2px;
-            background-color: white;
-            transition: .4s;
-            border-radius: 50%;
-        }
-        input:checked + .slider {
-            background-color: var(--success);
-        }
-        input:checked + .slider:before {
-            transform: translateX(18px);
-        }
-        .actions {
-            display: flex;
-            gap: 8px;
-        }
-        .section-title {
-            color: var(--primary);
-            font-size: 1.2rem;
-            font-weight: 600;
-        }
+        
+        /* Кнопка назад */
         .back-btn {
             position: fixed;
             left: 30px;
             bottom: 30px;
             z-index: 100;
-            padding: 8px 12px;
+            padding: 12px 16px;
+        }
+        
+        /* Анимации */
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        @keyframes slideInUp {
+            from {
+                transform: translateY(20px);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+        
+        .back-btn {
             background-color: #4a7dff;
             color: white;
             border: none;
-            border-radius: 4px;
+            border-radius: 8px;
             cursor: pointer;
             font-size: 14px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            transition: background 0.2s;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
         }
+        
         .back-btn:hover {
             background-color: #3a6de8;
+            transform: translateY(-2px);
         }
-        /* Модальное окно */
-        .modal {
-            display: none;
-            position: fixed;
-            z-index: 1000;
-            left: 0; top: 0; width: 100vw; height: 100vh;
-            background: rgba(0,0,0,0.3);
-            justify-content: center;
-            align-items: center;
+        
+        /* Адаптивность */
+        @media (max-width: 768px) {
+            .main-content {
+                margin: 0;
+                border-radius: 0;
+                padding: 15px;
+            }
+            
+            .tab-buttons {
+                flex-direction: column;
+            }
+            
+            .tab-button {
+                border-radius: 6px;
+                margin-bottom: 4px;
+            }
+            
+            .button-group {
+                flex-direction: column;
+            }
+            
+            .action-button {
+                justify-content: center;
+            }
         }
-        .modal-content {
-            background: white;
-            border-radius: 10px;
-            padding: 30px 30px 20px 30px;
-            min-width: 320px;
-            max-width: 90vw;
-            box-shadow: 0 8px 32px rgba(0,0,0,0.15);
+        
+        /* Анимации */
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
         }
-        .modal-title {
-            font-size: 1.2rem;
-            font-weight: 600;
-            margin-bottom: 18px;
+        
+        @keyframes slideInUp {
+            from {
+                transform: translateY(20px);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
         }
-        .modal-row {
-            margin-bottom: 12px;
+
+        /* Стили для валидации */
+        .form-control.error {
+            border-color: #e53e3e;
+            box-shadow: 0 0 0 3px rgba(229, 62, 62, 0.1);
         }
-        .modal-row label {
-            display: block;
-            margin-bottom: 4px;
-            color: #555;
+
+        .form-control.error:focus {
+            border-color: #e53e3e;
+            box-shadow: 0 0 0 3px rgba(229, 62, 62, 0.2);
         }
-        .modal-row input, .modal-row select, .modal-row textarea {
-            width: 320px;
-            min-width: 320px;
-            max-width: 320px;
-            box-sizing: border-box;
-            padding: 7px 10px;
-            border: 1px solid #cbd5e0;
-            border-radius: 4px;
-            font-size: 1rem;
+
+        .validation-error {
+            color: #e53e3e;
+            font-size: 12px;
+            margin-top: 4px;
+            font-weight: 500;
+            animation: fadeIn 0.3s ease-in;
         }
-        .modal-buttons {
-            display: flex;
-            justify-content: flex-end;
-            gap: 10px;
-            margin-top: 18px;
-        }
-        .cancel-btn {
-            background-color: #ccc;
-            color: #222;
-            border: none;
-            border-radius: 4px;
-            padding: 8px 16px;
-            cursor: pointer;
-            font-size: 14px;
-        }
-        .cancel-btn:hover {
-            background-color: #bbb;
-        }
-        @media (max-width: 900px) {
-            .main-content { padding: 10px; margin: 0; border-radius: 0; }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-5px); }
+            to { opacity: 1; transform: translateY(0); }
         }
     </style>
 </head>
 <body>
     <div class="main-content">
         <div class="header">
-            <span class="header-title">Правила доступа</span>
-            <div style="display: flex; gap: 10px;">
-            {% if user_role == 'firewall-admin' %}
-                <button class="btn btn-secondary" onclick="openAuditModal()"><i class="fas fa-history"></i> История изменений</button>
-            {% endif %}
-                <button class="btn btn-primary" onclick="openRuleModal()"><i class="fas fa-plus"></i> Добавить правило</button>
+            <h1 class="header-title">Блокировка хостов</h1>
             </div>
+        
+        <!-- Вкладки -->
+        <div class="tab-container">
+            <div class="tab-buttons">
+                <button class="tab-button active" onclick="switchTab('dns')">
+                    <i class="fas fa-globe"></i> DNS блокировка (dnsmasq)
+                </button>
+                <button class="tab-button" onclick="switchTab('ip')">
+                    <i class="fas fa-shield-alt"></i> IP блокировка (iptables)
+                </button>
         </div>
-        <!-- Фильтры и поиск -->
-        <div style="display: flex; gap: 16px; margin-bottom: 18px; align-items: center;">
-            <input type="text" id="search-input" placeholder="Поиск по названию..." style="padding: 7px 12px; border-radius: 5px; border: 1px solid #cbd5e0; min-width: 220px;">
-            <select id="filter-protocol" style="padding: 7px 12px; border-radius: 5px; border: 1px solid #cbd5e0;">
-                <option value="">Все протоколы</option>
-                <option value="tcp">TCP</option>
-                <option value="udp">UDP</option>
-                <option value="icmp">ICMP</option>
-                <option value="any">Любой</option>
+
+            <!-- Контент вкладки "DNS блокировка (dnsmasq)" -->
+            <div id="dns-tab" class="tab-content active">
+                <h3 style="margin-top: 0; color: #4a5568;">DNS блокировка через dnsmasq</h3>
+                <p style="color: #718096; margin-bottom: 20px;">
+                    Блокировка доменов на уровне DNS. Эффективно против динамических IP-адресов.
+                </p>
+                
+                <div class="input-group">
+                    <label for="dns-device">Устройство:</label>
+                    <select id="dns-device" class="form-control">
+                        <option value="">Выберите устройство...</option>
             </select>
-            <select id="filter-action" style="padding: 7px 12px; border-radius: 5px; border: 1px solid #cbd5e0;">
-                <option value="">Все действия</option>
-                <option value="allow">Разрешить</option>
-                <option value="deny">Запретить</option>
-            </select>
         </div>
-        <div style="margin-bottom: 40px;">
-            <h3 class="section-title" style="margin-bottom: 10px;">Включенные правила</h3>
-            <table class="rules-table" id="enabled-rules-table">
-                <thead>
-                    <tr>
-                        <th></th>
-                        <th>Название</th>
-                        <th>Протокол</th>
-                        <th>Порт</th>
-                        <th>Направление</th>
-                        <th>Действие</th>
-                        <th>Комментарий</th>
-                        <th>Редактирование</th>
-                    </tr>
-                </thead>
-                <tbody id="enabled-rules-tbody"></tbody>
-            </table>
+                
+                <div class="input-group">
+                    <label for="dns-domain">Домен для блокировки:</label>
+                    <input type="text" id="dns-domain" class="form-control" placeholder="example.com">
         </div>
-        <div>
-            <h3 class="section-title" style="margin-bottom: 10px;">Выключенные правила</h3>
-            <table class="rules-table" id="disabled-rules-table">
-                <thead>
-                    <tr>
-                        <th></th>
-                        <th>Название</th>
-                        <th>Протокол</th>
-                        <th>Порт</th>
-                        <th>Направление</th>
-                        <th>Действие</th>
-                        <th>Комментарий</th>
-                        <th>Редактирование</th>
-                    </tr>
-                </thead>
-                <tbody id="disabled-rules-tbody"></tbody>
-            </table>
-        </div>
+                
+                <div class="button-group">
+                    <button onclick="addDnsBlock()" class="action-button danger">
+                        <i class="fas fa-ban"></i> Заблокировать
+                    </button>
+                    <button onclick="showDnsBlocked()" class="action-button primary">
+                        <i class="fas fa-list"></i> Показать заблокированные
+                    </button>
+                    <button onclick="checkDnsStatus()" class="action-button success">
+                        <i class="fas fa-info-circle"></i> Статус DNS
+                    </button>
+                    <button onclick="removeAllDnsBlocks()" class="action-button" style="background: #dc2626; color: white;">
+                        <i class="fas fa-trash"></i> Удалить все блокировки
+                    </button>
     </div>
-    <!-- Кнопка "Назад" -->
-    <button class="back-btn" onclick="window.location.href='/dashboard'"><i class="fas fa-arrow-left"></i> Назад</button>
+                
+                <div id="dns-result" class="result-area"></div>
+    </div>
 
-    <!-- Модальное окно подтверждения удаления -->
-    <div class="modal" id="delete-modal">
-        <div class="modal-content">
-            <div class="modal-title">Удаление правила</div>
-            <div class="delete-modal-text" id="delete-modal-text">Вы уверены, что хотите удалить это правило?</div>
-            <div class="modal-buttons">
-                <button class="cancel-btn" id="cancel-delete-rule">Отмена</button>
-                <button class="btn btn-danger" id="confirm-delete-rule">Удалить</button>
+            <!-- Контент вкладки "IP блокировка (iptables)" -->
+            <div id="ip-tab" class="tab-content">
+                <h3 style="margin-top: 0; color: #4a5568;">IP блокировка через iptables</h3>
+                <p style="color: #718096; margin-bottom: 20px;">
+                    Блокировка конкретных IP-адресов через iptables. Подходит для статических IP-адресов.
+                </p>
+                
+                <div class="input-group">
+                    <label for="ip-device">Устройство:</label>
+                    <select id="ip-device" class="form-control">
+                        <option value="">Выберите устройство...</option>
+                    </select>
+                </div>
+                
+                <div class="input-group">
+                    <label for="ip-address">IP-адрес для блокировки:</label>
+                    <input type="text" id="ip-address" class="form-control" placeholder="192.168.1.100">
+                </div>
+                
+                <div class="input-group">
+                    <label for="ip-port">Порт (необязательно):</label>
+                    <input type="text" id="ip-port" class="form-control" placeholder="80,443 (по умолчанию все)">
+                </div>
+                
+                <div class="input-group">
+                    <label for="ip-direction">Направление блокировки:</label>
+                    <select id="ip-direction" class="form-control">
+                        <option value="both">Весь трафик (входящий + исходящий)</option>
+                        <option value="in">Только входящий трафик</option>
+                        <option value="out">Только исходящий трафик</option>
+                    </select>
+                </div>
+                
+                <div class="button-group">
+                    <button onclick="addIpBlock()" class="action-button danger">
+                        <i class="fas fa-ban"></i> Заблокировать IP
+                    </button>
+                    <button onclick="getRawIptables()" class="action-button primary">
+                        <i class="fas fa-list"></i> Показать заблокированные
+                    </button>
+                    <button onclick="removeAllIpBlocks()" class="action-button" style="background: #dc2626; color: white;">
+                        <i class="fas fa-trash"></i> Удалить все блокировки
+                    </button>
+    </div>
+
+                <div id="ip-result" class="result-area"></div>
             </div>
         </div>
     </div>
-
-    <!-- Модальное окно для добавления/редактирования правила -->
-    <div class="modal" id="rule-modal">
-        <div class="modal-content">
-            <div class="modal-title" id="modal-title">Новое правило</div>
-            <form id="rule-form">
-                <input type="hidden" id="rule-id">
-                <div class="modal-row">
-                    <label for="rule-name">Название</label>
-                    <input type="text" id="rule-name" required>
-                </div>
-                <div class="modal-row">
-                    <label for="rule-protocol">Протокол</label>
-                    <select id="rule-protocol">
-                        <option value="any">Любой</option>
-                        <option value="tcp">TCP</option>
-                        <option value="udp">UDP</option>
-                        <option value="icmp">ICMP</option>
-                    </select>
-                </div>
-                <div class="modal-row">
-                    <label for="rule-port">Порт (или диапазон)</label>
-                    <input type="text" id="rule-port" placeholder="например, 80 или 1000-2000">
-                </div>
-                <div class="modal-row">
-                    <label for="rule-direction">Направление</label>
-                    <select id="rule-direction">
-                        <option value="any">Любое</option>
-                        <option value="inbound">Входящее</option>
-                        <option value="outbound">Исходящее</option>
-                    </select>
-                </div>
-                <div class="modal-row">
-                    <label for="rule-action">Действие</label>
-                    <select id="rule-action">
-                        <option value="allow">Разрешить</option>
-                        <option value="deny">Запретить</option>
-                    </select>
-                </div>
-                <div class="modal-row">
-                    <label for="rule-enabled">Включено</label>
-                    <input type="checkbox" id="rule-enabled" checked>
-                </div>
-                <div class="modal-row">
-                    <label for="rule-comment">Комментарий</label>
-                    <textarea id="rule-comment" rows="2"></textarea>
-                </div>
-                <div class="modal-buttons">
-                    <button type="button" class="btn btn-secondary" onclick="closeRuleModal()">Отмена</button>
-                    <button type="submit" class="btn btn-primary">Сохранить</button>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    <!-- Модальное окно истории изменений -->
-    {% if user_role == 'firewall-admin' %}
-    <div class="modal" id="audit-modal">
-        <div class="modal-content" style="min-width: 420px; max-width: 90vw;">
-            <div class="modal-title">История изменений правил</div>
-            <div id="audit-list" style="max-height: 350px; overflow-y: auto; font-size: 0.98rem; color: #222;">
-                Загрузка...
-            </div>
-            <div class="modal-buttons">
-                <button class="btn btn-secondary" onclick="closeAuditModal()">Закрыть</button>
-            </div>
-        </div>
-    </div>
-    {% endif %}
+    
+    <button class="back-btn" onclick="window.location.href='/dashboard'">
+        <i class="fas fa-arrow-left"></i> Назад
+    </button>
 
 <script>
-// Переменная роли пользователя из шаблона
-const USER_ROLE = '{{ user_role }}';
+        // Загрузка устройств при загрузке страницы
+        document.addEventListener('DOMContentLoaded', function() {
+            loadDevicesToSelect('dns-device');
+            loadDevicesToSelect('ip-device');
+            
+            // Добавляем валидацию в реальном времени для IP-адреса
+            const ipAddressInput = document.getElementById('ip-address');
+            if (ipAddressInput) {
+                ipAddressInput.addEventListener('input', function() {
+                    const validation = validateIPAddress(this.value);
+                    if (!validation.valid && this.value.trim() !== '') {
+                        showValidationError('ip-address', validation.message);
+                    } else {
+                        clearValidationError('ip-address');
+                    }
+                });
+                
+                ipAddressInput.addEventListener('blur', function() {
+                    const validation = validateIPAddress(this.value);
+                    if (!validation.valid && this.value.trim() !== '') {
+                        showValidationError('ip-address', validation.message);
+                    }
+                });
+            }
+            
+            // Добавляем валидацию в реальном времени для порта
+            const ipPortInput = document.getElementById('ip-port');
+            if (ipPortInput) {
+                ipPortInput.addEventListener('input', function() {
+                    const validation = validatePort(this.value);
+                    if (!validation.valid && this.value.trim() !== '') {
+                        showValidationError('ip-port', validation.message);
+                    } else {
+                        clearValidationError('ip-port');
+                    }
+                });
+                
+                ipPortInput.addEventListener('blur', function() {
+                    const validation = validatePort(this.value);
+                    if (!validation.valid && this.value.trim() !== '') {
+                        showValidationError('ip-port', validation.message);
+                    }
+                });
+            }
+            
+            // Добавляем валидацию в реальном времени для домена
+            const dnsDomainInput = document.getElementById('dns-domain');
+            if (dnsDomainInput) {
+                dnsDomainInput.addEventListener('input', function() {
+                    const validation = validateDomain(this.value);
+                    if (!validation.valid && this.value.trim() !== '') {
+                        showValidationError('dns-domain', validation.message);
+                    } else {
+                        clearValidationError('dns-domain');
+                    }
+                });
+                
+                dnsDomainInput.addEventListener('blur', function() {
+                    const validation = validateDomain(this.value);
+                    if (!validation.valid && this.value.trim() !== '') {
+                        showValidationError('dns-domain', validation.message);
+                    }
+                });
+            }
+        });
 
-// --- Работа с API ---
-async function fetchRules() {
-    const res = await fetch('/api/rules');
-    return await res.json();
-}
-async function addRule(data) {
-    try {
-        const form = new FormData();
-        for (const k in data) form.append(k, data[k]);
-        const response = await fetch('/api/rules', {method: 'POST', body: form});
-        const result = await response.json();
-        if (result.error) {
-            alert('Ошибка: ' + result.error);
-            return false;
+        // Переключение вкладок
+        function switchTab(tabName) {
+            // Убираем активный класс у всех кнопок и контента
+            document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
+            
+            // Добавляем активный класс выбранной вкладке
+            document.querySelector(`[onclick="switchTab('${tabName}')"]`).classList.add('active');
+            document.getElementById(`${tabName}-tab`).classList.add('active');
         }
-        return true;
-    } catch (error) {
-        console.error('Ошибка при добавлении правила:', error);
-        alert('Ошибка при добавлении правила: ' + error.message);
-        return false;
-    }
-}
-async function updateRule(id, data) {
-    try {
-        const form = new FormData();
-        for (const k in data) form.append(k, data[k]);
-        const response = await fetch(`/api/rules/${id}`, {method: 'PUT', body: form});
-        const result = await response.json();
-        if (result.error) {
-            alert('Ошибка: ' + result.error);
-            return false;
+
+        // Универсальная функция для загрузки устройств в select
+        async function loadDevicesToSelect(selectId) {
+            const select = document.getElementById(selectId);
+            if (!select) return;
+            
+            try {
+                const response = await fetch('/api/firewall_devices');
+                const data = await response.json();
+                
+                select.innerHTML = '<option value="">Выберите устройство...</option>';
+                for (const dev of data) {
+                    if (dev.type === 'openwrt') {
+                        const displayName = dev.name || dev.ip || `Устройство ${dev.id}`;
+                select.innerHTML += `<option value="${dev.id}">${displayName} (${dev.type})</option>`;
+                    }
+                }
+            } catch (e) {
+                select.innerHTML = '<option value="">Ошибка загрузки</option>';
+            }
         }
-        return true;
-    } catch (error) {
-        console.error('Ошибка при обновлении правила:', error);
-        alert('Ошибка при обновлении правила: ' + error.message);
-        return false;
-    }
-}
-async function deleteRule(id) {
-    return await fetch(`/api/rules/${id}`, {method: 'DELETE'});
-}
-async function toggleRule(id) {
-    return await fetch(`/api/rules/${id}/toggle`, {method: 'POST'});
-}
 
-// --- Поиск и фильтрация ---
-let allRulesCache = [];
+        // DNS блокировка
+        async function addDnsBlock() {
+            const deviceId = document.getElementById('dns-device').value;
+            const domain = document.getElementById('dns-domain').value;
+            
+            // Очищаем предыдущие ошибки валидации
+            clearValidationError('dns-domain');
+            
+            // Проверяем устройство
+            if (!deviceId) {
+                showResult('dns-result', 'Выберите устройство', 'error');
+                return;
+            }
+            
+            // Валидируем домен
+            const domainValidation = validateDomain(domain);
+            if (!domainValidation.valid) {
+                showValidationError('dns-domain', domainValidation.message);
+                showResult('dns-result', 'Исправьте ошибки в форме', 'error');
+                return;
+            }
+            
+            // Показываем индикатор загрузки
+            showResult('dns-result', `
+                <div style="
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                    justify-content: center;
+                    padding: 40px 20px;
+                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                    border-radius: 16px;
+                    color: white;
+                    text-align: center;
+                    margin-top: 15px;
+                ">
+                    <div style="
+                        width: 60px;
+                        height: 60px;
+                        border: 3px solid rgba(255,255,255,0.3);
+                        border-top: 3px solid white;
+                        border-radius: 50%;
+                        animation: spin 1s linear infinite;
+                        margin-bottom: 20px;
+                    "></div>
+                    <h4 style="margin: 0 0 10px 0; font-size: 18px; font-weight: 600;">
+                        <i class="fas fa-ban" style="margin-right: 8px;"></i>
+                        Блокировка домена...
+                    </h4>
+                    <p style="margin: 0; opacity: 0.9; font-size: 14px;">
+                        Добавляем ${domain} в список блокировки
+                    </p>
+                </div>
+            `, 'success');
+            
+            try {
+                const response = await fetch('/api/device_dns_block?device_id=' + deviceId, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ domain: domain })
+                });
+                
+                const data = await response.json();
+                if (response.ok) {
+                    // Очищаем поле ввода
+                    document.getElementById('dns-domain').value = '';
+                    
+                    // Показываем краткое уведомление об успехе
+                    showQuickNotification(`Домен ${domain} заблокирован!`, 'success');
+                    
+                    // Автоматически обновляем список заблокированных доменов
+                    setTimeout(() => {
+                        showDnsBlocked();
+                    }, 1000);
+                } else {
+                    showResult('dns-result', 'Ошибка: ' + data.detail, 'error');
+                }
+            } catch (error) {
+                showResult('dns-result', 'Ошибка соединения: ' + error.message, 'error');
+            }
+        }
 
-async function fetchRules() {
-    const res = await fetch('/api/rules');
-    const data = await res.json();
-    allRulesCache = data;
-    return data;
-}
+        async function showDnsBlocked() {
+            const deviceId = document.getElementById('dns-device').value;
+            if (!deviceId) {
+                showResult('dns-result', 'Выберите устройство', 'error');
+                return;
+            }
+            
+            // Показываем индикатор загрузки
+            showResult('dns-result', `
+                <div style="
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                    justify-content: center;
+                    padding: 40px 20px;
+                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                    border-radius: 16px;
+                    color: white;
+                    text-align: center;
+                    margin-top: 15px;
+                ">
+                    <div style="
+                        width: 60px;
+                        height: 60px;
+                        border: 3px solid rgba(255,255,255,0.3);
+                        border-top: 3px solid white;
+                        border-radius: 50%;
+                        animation: spin 1s linear infinite;
+                        margin-bottom: 20px;
+                    "></div>
+                    <h4 style="margin: 0 0 10px 0; font-size: 18px; font-weight: 600;">
+                        <i class="fas fa-search" style="margin-right: 8px;"></i>
+                        Поиск заблокированных доменов...
+                    </h4>
+                    <p style="margin: 0; opacity: 0.9; font-size: 14px;">
+                        Проверяем конфигурацию dnsmasq
+                    </p>
+                </div>
+            `, 'success');
+            
+            try {
+                const response = await fetch('/api/device_dns_rules?device_id=' + deviceId);
+                const data = await response.json();
+                
+                if (response.ok) {
+                    if (data.domains && data.domains.length > 0) {
+                        // Создаем красивый HTML для списка доменов
+                        const domainsHtml = data.domains.map((domain, index) => `
+                            <div class="blocked-domain-item" style="
+                                display: flex;
+                                align-items: center;
+                                justify-content: space-between;
+                                padding: 16px 20px;
+                                margin: 12px 0;
+                                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                                color: white;
+                                border-radius: 12px;
+                                box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+                                transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+                                transform: translateY(20px);
+                                opacity: 0;
+                                animation: slideInUp 0.6s ease forwards ${index * 0.1}s;
+                            " onmouseover="this.style.transform='translateY(-4px) scale(1.02)'; this.style.boxShadow='0 8px 25px rgba(102, 126, 234, 0.4)'" 
+                               onmouseout="this.style.transform='translateY(0) scale(1)'; this.style.boxShadow='0 4px 15px rgba(102, 126, 234, 0.3)'">
+                                <div style="display: flex; align-items: center; gap: 16px;">
+                                    <div style="
+                                        width: 40px;
+                                        height: 40px;
+                                        background: rgba(255,255,255,0.2);
+                                        border-radius: 50%;
+                                        display: flex;
+                                        align-items: center;
+                                        justify-content: center;
+                                        font-weight: bold;
+                                        font-size: 16px;
+                                        backdrop-filter: blur(10px);
+                                        border: 1px solid rgba(255,255,255,0.3);
+                                    ">${index + 1}</div>
+                                    <div>
+                                        <div style="font-weight: 700; font-size: 18px; margin-bottom: 4px;">${domain}</div>
+                                        <div style="font-size: 13px; opacity: 0.8; display: flex; align-items: center; gap: 6px;">
+                                            <i class="fas fa-shield-alt"></i>
+                                            DNS заблокирован
+                                        </div>
+                                    </div>
+                                </div>
+                                <div style="display: flex; align-items: center;">
+                                    <button onclick="removeDnsBlockQuick('${domain}')" style="
+                                        background: rgba(255,255,255,0.2);
+                                        border: 1px solid rgba(255,255,255,0.3);
+                                        color: white;
+                                        padding: 8px 16px;
+                                        border-radius: 8px;
+                                        cursor: pointer;
+                                        font-size: 13px;
+                                        font-weight: 600;
+                                        transition: all 0.3s;
+                                        backdrop-filter: blur(10px);
+                                    " onmouseover="this.style.background='rgba(255,255,255,0.3)'; this.style.transform='scale(1.05)'" 
+                                       onmouseout="this.style.background='rgba(255,255,255,0.2)'; this.style.transform='scale(1)'">
+                                        <i class="fas fa-unlock" style="margin-right: 6px;"></i>
+                                        Разблокировать
+                                    </button>
+                                </div>
+                            </div>
+                        `).join('');
+                        
+                        const resultHtml = `
+                            <div style="
+                                background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+                                border: 1px solid #e2e8f0;
+                                border-radius: 20px;
+                                padding: 30px;
+                                margin-top: 15px;
+                                box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+                                position: relative;
+                                overflow: hidden;
+                            ">
+                                <!-- Декоративные элементы -->
+                                <div style="
+                                    position: absolute;
+                                    top: -50px;
+                                    right: -50px;
+                                    width: 100px;
+                                    height: 100px;
+                                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                                    border-radius: 50%;
+                                    opacity: 0.1;
+                                "></div>
+                                <div style="
+                                    position: absolute;
+                                    bottom: -30px;
+                                    left: -30px;
+                                    width: 60px;
+                                    height: 60px;
+                                    background: linear-gradient(135deg, #38a169 0%, #2f855a 100%);
+                                    border-radius: 50%;
+                                    opacity: 0.1;
+                                "></div>
+                                
+                                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 30px; position: relative; z-index: 1;">
+                                    <div>
+                                        <h3 style="margin: 0; color: #1a202c; font-size: 24px; font-weight: 800;">
+                                            <i class="fas fa-shield-alt" style="color: #667eea; margin-right: 12px; font-size: 28px;"></i>
+                                            Заблокированные домены
+                                        </h3>
+                                        <p style="margin: 8px 0 0 0; color: #718096; font-size: 16px; font-weight: 500;">
+                                            Всего заблокировано: <span style="
+                                                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                                                color: white;
+                                                padding: 4px 12px;
+                                                border-radius: 20px;
+                                                font-weight: 700;
+                                                font-size: 14px;
+                                            ">${data.total_count}</span>
+                                        </p>
+                                    </div>
+                                </div>
+                                
+                                <div style="position: relative; z-index: 1;">
+                                    ${domainsHtml}
+                                </div>
+                            </div>
+                        `;
+                        
+                        showResult('dns-result', resultHtml, 'success');
+                    } else {
+                        // Красивый вывод для пустого списка
+                        showResult('dns-result', `
+                            <div style="
+                                display: flex;
+                                flex-direction: column;
+                                align-items: center;
+                                justify-content: center;
+                                padding: 60px 20px;
+                                background: linear-gradient(135deg, #38a169 0%, #2f855a 100%);
+                                border-radius: 20px;
+                                color: white;
+                                text-align: center;
+                                margin-top: 15px;
+                                box-shadow: 0 10px 30px rgba(56, 161, 105, 0.3);
+                            ">
+                                <div style="
+                                    width: 80px;
+                                    height: 80px;
+                                    background: rgba(255,255,255,0.2);
+                                    border-radius: 50%;
+                                    display: flex;
+                                    align-items: center;
+                                    justify-content: center;
+                                    margin-bottom: 20px;
+                                    backdrop-filter: blur(10px);
+                                    border: 2px solid rgba(255,255,255,0.3);
+                                ">
+                                    <i class="fas fa-check" style="font-size: 32px;"></i>
+                                </div>
+                                <h3 style="margin: 0 0 10px 0; font-size: 24px; font-weight: 700;">
+                                    Нет заблокированных доменов
+                                </h3>
+                                <p style="margin: 0; opacity: 0.9; font-size: 16px;">
+                                    Все домены доступны для посещения
+                                </p>
+                            </div>
+                        `, 'success');
+                    }
+                } else {
+                    showResult('dns-result', 'Ошибка: ' + data.detail, 'error');
+                }
+            } catch (error) {
+                showResult('dns-result', 'Ошибка соединения: ' + error.message, 'error');
+            }
+        }
 
-function filterRules(rules) {
-    const search = document.getElementById('search-input').value.trim().toLowerCase();
-    const proto = document.getElementById('filter-protocol').value;
-    const act = document.getElementById('filter-action').value;
-    return rules.filter(rule => {
-        let ok = true;
-        if (search && !rule.name.toLowerCase().includes(search)) ok = false;
-        if (proto && rule.protocol !== proto) ok = false;
-        if (act && rule.action !== act) ok = false;
-        return ok;
-    });
-}
+        // Быстрая разблокировка домена
+        async function removeDnsBlockQuick(domain) {
+            const deviceId = document.getElementById('dns-device').value;
+            if (!deviceId) {
+                showResult('dns-result', 'Выберите устройство', 'error');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/device_dns_unblock?device_id=' + deviceId, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ domain: domain })
+                });
+                
+                const data = await response.json();
+                if (response.ok) {
+                    // Показываем уведомление об успехе
+                    showQuickNotification(`Домен ${domain} разблокирован!`, 'success');
+                    // Обновляем список
+                    setTimeout(() => showDnsBlocked(), 1000);
+                } else {
+                    showQuickNotification('Ошибка: ' + data.detail, 'error');
+                }
+            } catch (error) {
+                showQuickNotification('Ошибка соединения: ' + error.message, 'error');
+            }
+        }
 
-async function renderRules() {
-    // Используем кэш, чтобы не делать лишний запрос
-    const rules = allRulesCache.length ? allRulesCache : await fetchRules();
-    const filtered = filterRules(rules);
-    const enabledTbody = document.getElementById('enabled-rules-tbody');
-    const disabledTbody = document.getElementById('disabled-rules-tbody');
-    enabledTbody.innerHTML = '';
-    disabledTbody.innerHTML = '';
-    for (const rule of filtered) {
-        const tr = document.createElement('tr');
-        const tdCheck = document.createElement('td');
-        tdCheck.innerHTML = `<input type='checkbox' ${rule.enabled ? 'checked' : ''} onchange='onToggleRule(${rule.id})'>`;
-        tr.appendChild(tdCheck);
-        tr.innerHTML += `<td>${rule.name}</td>`;
-        tr.innerHTML += `<td>${rule.protocol === 'any' ? 'Любой' : rule.protocol.toUpperCase()}</td>`;
-        tr.innerHTML += `<td>${rule.port || ''}</td>`;
-        tr.innerHTML += `<td>${directionName(rule.direction)}</td>`;
-        tr.innerHTML += `<td>${actionName(rule.action)}</td>`;
-        tr.innerHTML += `<td>${rule.comment || ''}</td>`;
-        const tdEdit = document.createElement('td');
-        tdEdit.className = 'actions';
-        if (USER_ROLE === 'firewall-admin') {
-            tdEdit.innerHTML = `
-                <button class='btn btn-primary' style='background: var(--primary); color: white; margin-right: 8px;' title='Изменить' onclick='onEditRule(${rule.id})'><i class='fas fa-edit'></i> Изменить</button>
-                <button class='btn btn-danger' style='background: #e53e3e; color: white;' title='Удалить' onclick='onDeleteRule(${rule.id})'><i class='fas fa-trash'></i> Удалить</button>
+        // Удаление всех DNS блокировок
+        async function removeAllDnsBlocks() {
+            const deviceId = document.getElementById('dns-device').value;
+            if (!deviceId) {
+                showResult('dns-result', 'Выберите устройство', 'error');
+                return;
+            }
+            
+            // Запрашиваем подтверждение
+            if (!confirm('Вы уверены, что хотите удалить ВСЕ заблокированные домены? Это действие нельзя отменить.')) {
+                return;
+            }
+            
+            // Показываем индикатор загрузки
+            showResult('dns-result', `
+                <div style="
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                    justify-content: center;
+                    padding: 40px 20px;
+                    background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+                    border-radius: 16px;
+                    color: white;
+                    text-align: center;
+                    margin-top: 15px;
+                ">
+                    <div style="
+                        width: 60px;
+                        height: 60px;
+                        border: 3px solid rgba(255,255,255,0.3);
+                        border-top: 3px solid white;
+                        border-radius: 50%;
+                        animation: spin 1s linear infinite;
+                        margin-bottom: 20px;
+                    "></div>
+                    <h4 style="margin: 0 0 10px 0; font-size: 18px; font-weight: 600;">
+                        <i class="fas fa-trash" style="margin-right: 8px;"></i>
+                        Удаление всех блокировок...
+                    </h4>
+                    <p style="margin: 0; opacity: 0.9; font-size: 14px;">
+                        Очищаем список заблокированных доменов
+                    </p>
+                </div>
+            `, 'success');
+            
+            try {
+                const response = await fetch('/api/device_dns_clear_all?device_id=' + deviceId, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                
+                const data = await response.json();
+                if (response.ok) {
+                    // Показываем уведомление об успехе
+                    showQuickNotification('Все DNS блокировки удалены!', 'success');
+                    
+                    // Показываем красивый результат
+                    setTimeout(() => {
+                        showResult('dns-result', `
+                            <div style="
+                                display: flex;
+                                flex-direction: column;
+                                align-items: center;
+                                justify-content: center;
+                                padding: 60px 20px;
+                                background: linear-gradient(135deg, #38a169 0%, #2f855a 100%);
+                                border-radius: 20px;
+                                color: white;
+                                text-align: center;
+                                margin-top: 15px;
+                                box-shadow: 0 10px 30px rgba(56, 161, 105, 0.3);
+                            ">
+                                <div style="
+                                    width: 80px;
+                                    height: 80px;
+                                    background: rgba(255,255,255,0.2);
+                                    border-radius: 50%;
+                                    display: flex;
+                                    align-items: center;
+                                    justify-content: center;
+                                    margin-bottom: 20px;
+                                    backdrop-filter: blur(10px);
+                                    border: 2px solid rgba(255,255,255,0.3);
+                                ">
+                                    <i class="fas fa-check" style="font-size: 32px;"></i>
+                                </div>
+                                <h3 style="margin: 0 0 10px 0; font-size: 24px; font-weight: 700;">
+                                    Все блокировки удалены
+                                </h3>
+                                <p style="margin: 0; opacity: 0.9; font-size: 16px;">
+                                    Список заблокированных доменов очищен
+                                </p>
+                            </div>
+                        `, 'success');
+                    }, 1000);
+                } else {
+                    showResult('dns-result', 'Ошибка: ' + data.detail, 'error');
+                }
+            } catch (error) {
+                showResult('dns-result', 'Ошибка соединения: ' + error.message, 'error');
+            }
+        }
+
+        async function checkDnsStatus() {
+            const deviceId = document.getElementById('dns-device').value;
+            if (!deviceId) {
+                showResult('dns-result', 'Выберите устройство', 'error');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/device_dns_status?device_id=' + deviceId);
+                const data = await response.json();
+                
+                if (response.ok) {
+                    const statusHtml = `
+                        <div style="background: #f0fff4; border: 1px solid #9ae6b4; border-radius: 8px; padding: 15px;">
+                            <h4 style="margin: 0 0 10px 0; color: #22543d;">Статус DNS блокировки</h4>
+                            <p><strong>Устройство:</strong> ${data.device_name}</p>
+                            <p><strong>dnsmasq работает:</strong> ${data.dnsmasq_running ? '✅ Да' : '❌ Нет'}</p>
+                            <p><strong>Заблокировано доменов:</strong> ${data.blocked_count}</p>
+                            <p><strong>Последнее обновление:</strong> ${data.last_update || 'Неизвестно'}</p>
+                        </div>
+                    `;
+                    showResult('dns-result', statusHtml, 'success');
+                } else {
+                    showResult('dns-result', 'Ошибка: ' + data.detail, 'error');
+                }
+            } catch (error) {
+                showResult('dns-result', 'Ошибка соединения: ' + error.message, 'error');
+            }
+        }
+
+        // IP блокировка
+        async function addIpBlock() {
+            const deviceId = document.getElementById('ip-device').value;
+            const ip = document.getElementById('ip-address').value.trim();
+            const port = document.getElementById('ip-port').value.trim();
+            const direction = document.getElementById('ip-direction').value;
+
+            if (!deviceId) {
+                showResult('ip-result', 'Выберите устройство', 'error');
+                return;
+            }
+            if (!ip) {
+                showResult('ip-result', 'Введите IP-адрес', 'error');
+                return;
+            }
+
+            // Показываем анимацию загрузки (как при getRawIptables)
+            showResult('ip-result', `
+                <div style="
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                    justify-content: center;
+                    padding: 40px 20px;
+                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                    border-radius: 16px;
+                    color: white;
+                    text-align: center;
+                    margin-top: 15px;
+                ">
+                    <div style="
+                        width: 60px;
+                        height: 60px;
+                        border: 3px solid rgba(255,255,255,0.3);
+                        border-top: 3px solid white;
+                        border-radius: 50%;
+                        animation: spin 1s linear infinite;
+                        margin-bottom: 20px;
+                    "></div>
+                    <h4 style="margin: 0 0 10px 0; font-size: 18px; font-weight: 600;">
+                        <i class="fas fa-code" style="margin-right: 8px;"></i>
+                        Добавление блокировки IP...
+                    </h4>
+                    <p style="margin: 0; opacity: 0.9; font-size: 14px;">
+                        Пожалуйста, подождите
+                    </p>
+                </div>
+            `, 'success');
+
+            try {
+                const response = await fetch('/api/device_ip_block?device_id=' + deviceId, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ip, port, direction })
+                });
+                const data = await response.json();
+                if (response.ok) {
+                    // После успешного добавления сразу показываем getRawIptables()
+                    setTimeout(() => getRawIptables(), 1000);
+                } else {
+                    let ipBlockErrorMessage = 'Ошибка: ' + data.detail;
+                    if (data.debug_info) {
+                        ipBlockErrorMessage += `
+                            <div style="margin-top: 15px; padding: 10px; background: #fed7d7; border-radius: 6px; border-left: 4px solid #e53e3e;">
+                                <h5 style="margin: 0 0 8px 0; color: #c53030; font-size: 14px;">
+                                    <i class="fas fa-bug" style="margin-right: 6px;"></i>
+                                    Отладочная информация
+                                </h5>
+                                <p style="margin: 0 0 5px 0; color: #742a2a; font-size: 12px;">
+                                    <strong>Обработано правил:</strong> ${data.debug_info.raw_rules_count}
+                                </p>
+                                ${data.debug_info.error_details ? `
+                                    <p style="margin: 0 0 5px 0; color: #742a2a; font-size: 12px;">
+                                        <strong>Детали ошибки:</strong> ${data.debug_info.error_details}
+                                    </p>
+                                ` : ''}
+                                ${data.debug_info.raw_rules_sample.length > 0 ? `
+                                    <p style="margin: 0 0 5px 0; color: #742a2a; font-size: 12px;">
+                                        <strong>Примеры правил:</strong>
+                                    </p>
+                                    <div style="background: #1a202c; color: #e2e8f0; padding: 8px; border-radius: 4px; font-family: monospace; font-size: 11px; max-height: 100px; overflow-y: auto;">
+                                        ${data.debug_info.raw_rules_sample.map(rule => rule.replace(/</g, '&lt;').replace(/>/g, '&gt;')).join('\n')}
+                                    </div>
+                                ` : ''}
+                            </div>
+                        `;
+                    }
+                    showResult('ip-result', ipBlockErrorMessage, 'error');
+                }
+            } catch (error) {
+                showResult('ip-result', 'Ошибка соединения: ' + error.message, 'error');
+            }
+        }
+
+        async function showIpBlocked() {
+            const deviceId = document.getElementById('ip-device').value;
+            const selectedDirection = document.getElementById('ip-direction').value;
+            
+            if (!deviceId) {
+                showResult('ip-result', 'Выберите устройство', 'error');
+                return;
+            }
+            
+            // Показываем индикатор загрузки
+            showResult('ip-result', `
+                <div style="
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                    justify-content: center;
+                    padding: 40px 20px;
+                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                    border-radius: 16px;
+                    color: white;
+                    text-align: center;
+                    margin-top: 15px;
+                ">
+                    <div style="
+                        width: 60px;
+                        height: 60px;
+                        border: 3px solid rgba(255,255,255,0.3);
+                        border-top: 3px solid white;
+                        border-radius: 50%;
+                        animation: spin 1s linear infinite;
+                        margin-bottom: 20px;
+                    "></div>
+                    <h4 style="margin: 0 0 10px 0; font-size: 18px; font-weight: 600;">
+                        <i class="fas fa-list" style="margin-right: 8px;"></i>
+                        Загрузка списка...
+                    </h4>
+                    <p style="margin: 0; opacity: 0.9; font-size: 14px;">
+                        Получаем список заблокированных IP-адресов${selectedDirection !== 'both' ? ` (${selectedDirection === 'in' ? 'входящие' : 'исходящие'})` : ''}
+                    </p>
+                </div>
+            `, 'success');
+            
+            try {
+                let url = '/api/device_ip_rules?device_id=' + deviceId;
+                if (selectedDirection && selectedDirection !== 'both') {
+                    url += '&direction=' + selectedDirection;
+                }
+                const response = await fetch(url);
+                const data = await response.json();
+                
+                // Отладочная информация
+                console.log('IP Rules API Response:', data);
+                console.log('URL:', url);
+                console.log('Response status:', response.status);
+                
+                if (response.ok) {
+                    if (data.ips && data.ips.length > 0) {
+                        // Создаем красивый HTML для списка IP
+                        const ipsHtml = data.ips.map((ip, index) => `
+                            <div style="
+                                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                                color: white;
+                                padding: 20px;
+                                border-radius: 12px;
+                                margin-bottom: 15px;
+                                display: flex;
+                                align-items: center;
+                                justify-content: space-between;
+                                box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+                                animation: slideInUp 0.5s ease-out ${index * 0.1}s both;
+                            ">
+                                <div style="display: flex; align-items: center; gap: 15px;">
+                                    <div style="
+                                        width: 40px;
+                                        height: 40px;
+                                        background: rgba(255,255,255,0.2);
+                                        border-radius: 50%;
+                                        display: flex;
+                                        align-items: center;
+                                        justify-content: center;
+                                        font-weight: 700;
+                                        font-size: 16px;
+                                    ">${index + 1}</div>
+                                    <div>
+                                        <div style="font-weight: 700; font-size: 18px; margin-bottom: 4px;">
+                                            <i class="fas fa-shield-alt" style="margin-right: 8px; opacity: 0.8;"></i>
+                                            ${ip}
+                                        </div>
+                                        <div style="opacity: 0.8; font-size: 14px;">
+                                            Заблокированный IP-адрес
+                                        </div>
+                                    </div>
+                                </div>
+                                <button onclick="removeIpBlockQuick('${ip}')" style="
+                                    background: rgba(255,255,255,0.2);
+                                    border: none;
+                                    color: white;
+                                    padding: 8px 16px;
+                                    border-radius: 8px;
+                                    cursor: pointer;
+                                    font-weight: 600;
+                                    transition: all 0.3s ease;
+                                    backdrop-filter: blur(10px);
+                                " onmouseover="this.style.background='rgba(255,255,255,0.3)'" onmouseout="this.style.background='rgba(255,255,255,0.2)'">
+                                    <i class="fas fa-unlock" style="margin-right: 6px;"></i>
+                                    Разблокировать
+                                </button>
+                            </div>
+                        `).join('');
+                        
+                        const directionTitle = selectedDirection !== 'both' ? 
+                            (selectedDirection === 'in' ? 'входящие' : 'исходящие') : 
+                            'все';
+                        
+                        const resultHtml = `
+                            <div style="
+                                background: linear-gradient(135deg, #f7fafc 0%, #edf2f7 100%);
+                                border-radius: 20px;
+                                padding: 30px;
+                                margin-top: 15px;
+                                box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+                                position: relative;
+                                overflow: hidden;
+                            ">
+                                <!-- Декоративные элементы -->
+                                <div style="
+                                    position: absolute;
+                                    top: -50px;
+                                    right: -50px;
+                                    width: 100px;
+                                    height: 100px;
+                                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                                    border-radius: 50%;
+                                    opacity: 0.1;
+                                "></div>
+                                <div style="
+                                    position: absolute;
+                                    bottom: -30px;
+                                    left: -30px;
+                                    width: 60px;
+                                    height: 60px;
+                                    background: linear-gradient(135deg, #38a169 0%, #2f855a 100%);
+                                    border-radius: 50%;
+                                    opacity: 0.1;
+                                "></div>
+                                
+                                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 30px; position: relative; z-index: 1;">
+                                    <div>
+                                        <h3 style="margin: 0; color: #1a202c; font-size: 24px; font-weight: 800;">
+                                            <i class="fas fa-shield-alt" style="color: #667eea; margin-right: 12px; font-size: 28px;"></i>
+                                            Заблокированные IP-адреса (${directionTitle})
+                                        </h3>
+                                        <p style="margin: 8px 0 0 0; color: #718096; font-size: 16px; font-weight: 500;">
+                                            Всего заблокировано: <span style="
+                                                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                                                color: white;
+                                                padding: 4px 12px;
+                                                border-radius: 20px;
+                                                font-weight: 700;
+                                                font-size: 14px;
+                                            ">${data.total_count}</span>
+                                        </p>
+                                    </div>
+                                </div>
+                                
+                                <div style="position: relative; z-index: 1;">
+                                    ${ipsHtml}
+                                </div>
+                            </div>
+                        `;
+                        
+                        // Добавляем отладочную информацию, если она есть
+                        if (data.debug_info) {
+                            resultHtml += `
+                                <div style="margin-top: 20px; padding: 15px; background: #f7fafc; border-radius: 8px; border-left: 4px solid #4a7dff;">
+                                    <h4 style="margin: 0 0 10px 0; color: #2d3748; font-size: 16px;">
+                                        <i class="fas fa-bug" style="margin-right: 8px; color: #4a7dff;"></i>
+                                        Отладочная информация
+                                    </h4>
+                                    <p style="margin: 0 0 5px 0; color: #718096; font-size: 14px;">
+                                        <strong>Обработано правил:</strong> ${data.debug_info.raw_rules_count}
+                                    </p>
+                                    ${data.debug_info.raw_rules_sample.length > 0 ? `
+                                        <p style="margin: 0 0 5px 0; color: #718096; font-size: 14px;">
+                                            <strong>Примеры правил:</strong>
+                                        </p>
+                                        <div style="background: #1a202c; color: #e2e8f0; padding: 10px; border-radius: 4px; font-family: monospace; font-size: 12px; max-height: 150px; overflow-y: auto;">
+                                            ${data.debug_info.raw_rules_sample.map(rule => rule.replace(/</g, '&lt;').replace(/>/g, '&gt;')).join('\n')}
+                                        </div>
+                                    ` : ''}
+                                </div>
+                            `;
+                        }
+                        
+                        showResult('ip-result', resultHtml, 'success');
+                    } else {
+                        // Красивый вывод для пустого списка
+                        showResult('ip-result', `
+                            <div style="
+                                display: flex;
+                                flex-direction: column;
+                                align-items: center;
+                                justify-content: center;
+                                padding: 60px 20px;
+                                background: linear-gradient(135deg, #38a169 0%, #2f855a 100%);
+                                border-radius: 20px;
+                                color: white;
+                                text-align: center;
+                                margin-top: 15px;
+                                box-shadow: 0 10px 30px rgba(56, 161, 105, 0.3);
+                            ">
+                                <div style="
+                                    width: 80px;
+                                    height: 80px;
+                                    background: rgba(255,255,255,0.2);
+                                    border-radius: 50%;
+                                    display: flex;
+                                    align-items: center;
+                                    justify-content: center;
+                                    margin-bottom: 20px;
+                                    backdrop-filter: blur(10px);
+                                    border: 2px solid rgba(255,255,255,0.3);
+                                ">
+                                    <i class="fas fa-check" style="font-size: 32px;"></i>
+                                </div>
+                                <h3 style="margin: 0 0 10px 0; font-size: 24px; font-weight: 700;">
+                                    Нет заблокированных IP
+                                </h3>
+                                <p style="margin: 0; opacity: 0.9; font-size: 16px;">
+                                    Все IP-адреса доступны для подключения
+                                </p>
+                            </div>
+                        `, 'success');
+                    }
+                } else {
+                    let ipBlockErrorMessage = 'Ошибка: ' + data.detail;
+                    
+                    // Добавляем отладочную информацию, если она есть
+                    if (data.debug_info) {
+                        ipBlockErrorMessage += `
+                            <div style="margin-top: 15px; padding: 10px; background: #fed7d7; border-radius: 6px; border-left: 4px solid #e53e3e;">
+                                <h5 style="margin: 0 0 8px 0; color: #c53030; font-size: 14px;">
+                                    <i class="fas fa-bug" style="margin-right: 6px;"></i>
+                                    Отладочная информация
+                                </h5>
+                                <p style="margin: 0 0 5px 0; color: #742a2a; font-size: 12px;">
+                                    <strong>Обработано правил:</strong> ${data.debug_info.raw_rules_count}
+                                </p>
+                                ${data.debug_info.error_details ? `
+                                    <p style="margin: 0 0 5px 0; color: #742a2a; font-size: 12px;">
+                                        <strong>Детали ошибки:</strong> ${data.debug_info.error_details}
+                                    </p>
+                                ` : ''}
+                                ${data.debug_info.raw_rules_sample.length > 0 ? `
+                                    <p style="margin: 0 0 5px 0; color: #742a2a; font-size: 12px;">
+                                        <strong>Примеры правил:</strong>
+                                    </p>
+                                    <div style="background: #1a202c; color: #e2e8f0; padding: 8px; border-radius: 4px; font-family: monospace; font-size: 11px; max-height: 100px; overflow-y: auto;">
+                                        ${data.debug_info.raw_rules_sample.map(rule => rule.replace(/</g, '&lt;').replace(/>/g, '&gt;')).join('\n')}
+                                    </div>
+                                ` : ''}
+                            </div>
+                        `;
+                    }
+                    
+                    showResult('ip-result', ipBlockErrorMessage, 'error');
+                }
+            } catch (error) {
+                showResult('ip-result', 'Ошибка соединения: ' + error.message, 'error');
+            }
+        }
+
+        // Получение сырых данных iptables
+        async function getRawIptables() {
+            const deviceId = document.getElementById('ip-device').value;
+            
+            if (!deviceId) {
+                showResult('ip-result', 'Выберите устройство', 'error');
+                return;
+            }
+            
+            // Показываем индикатор загрузки
+            showResult('ip-result', `
+                <div style="
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                    justify-content: center;
+                    padding: 40px 20px;
+                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                    border-radius: 16px;
+                    color: white;
+                    text-align: center;
+                    margin-top: 15px;
+                ">
+                    <div style="
+                        width: 60px;
+                        height: 60px;
+                        border: 3px solid rgba(255,255,255,0.3);
+                        border-top: 3px solid white;
+                        border-radius: 50%;
+                        animation: spin 1s linear infinite;
+                        margin-bottom: 20px;
+                    "></div>
+                    <h4 style="margin: 0 0 10px 0; font-size: 18px; font-weight: 600;">
+                        <i class="fas fa-code" style="margin-right: 8px;"></i>
+                        Загрузка данных iptables...
+                    </h4>
+                    <p style="margin: 0; opacity: 0.9; font-size: 14px;">
+                        Получаем все правила из всех цепочек
+                    </p>
+                </div>
+            `, 'success');
+            
+            try {
+                const response = await fetch('/api/device_iptables_raw?device_id=' + deviceId);
+                const data = await response.json();
+                
+                if (response.ok) {
+                    let html = '';
+                    
+                    // Собираем все DROP правила из всех цепочек
+                    let allDropRules = [];
+                    let chainStats = {};
+                    
+                    for (const [chain, rules] of Object.entries(data.all_rules)) {
+                        // Фильтруем только правила DROP, исключая заголовки цепочек
+                        const dropRules = rules.filter(rule => 
+                            rule.includes('DROP') && 
+                            !rule.includes('Chain ') && 
+                            !rule.includes('policy ') &&
+                            !rule.includes('target') &&
+                            !rule.includes('prot') &&
+                            rule.trim().length > 0
+                        );
+                        chainStats[chain] = dropRules.length;
+                        
+                        dropRules.forEach((rule, index) => {
+                            allDropRules.push({
+                                chain: chain,
+                                rule: rule,
+                                originalIndex: rules.indexOf(rule) + 1,
+                                chainIndex: index + 1
+                            });
+                        });
+                    }
+                    
+                    // Отображаем единый список DROP правил
+                    if (allDropRules.length === 0) {
+                        html += `
+                            <div style="
+                                display: flex;
+                                flex-direction: column;
+                                align-items: center;
+                                justify-content: center;
+                                padding: 80px 40px;
+                                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                                border-radius: 24px;
+                                color: white;
+                                text-align: center;
+                                margin-top: 20px;
+                                box-shadow: 0 20px 40px rgba(102, 126, 234, 0.3);
+                                position: relative; z-index: 1;
+                                overflow: hidden;
+                            ">
+                                <div style="
+                                    position: absolute;
+                                    top: -50px;
+                                    right: -50px;
+                                    width: 100px;
+                                    height: 100px;
+                                    background: rgba(255,255,255,0.1);
+                                    border-radius: 50%;
+                                "></div>
+                                <div style="
+                                    position: absolute;
+                                    bottom: -30px;
+                                    left: -30px;
+                                    width: 60px;
+                                    height: 60px;
+                                    background: rgba(255,255,255,0.1);
+                                    border-radius: 50%;
+                                "></div>
+                                <div style="
+                                    width: 100px;
+                                    height: 100px;
+                                    background: rgba(255,255,255,0.15);
+                                    border-radius: 50%;
+                                    display: flex;
+                                    align-items: center;
+                                    justify-content: center;
+                                    margin-bottom: 30px;
+                                    backdrop-filter: blur(20px);
+                                    border: 3px solid rgba(255,255,255,0.2);
+                                    position: relative; z-index: 2;
+                                ">
+                                    <i class="fas fa-shield-alt" style="font-size: 40px; color: rgba(255,255,255,0.9);"></i>
+                                </div>
+                                <h3 style="margin: 0 0 15px 0; font-size: 28px; font-weight: 800; position: relative; z-index: 2;">
+                                    Все правила разрешены
+                                </h3>
+                                <p style="margin: 0; opacity: 0.9; font-size: 18px; position: relative; z-index: 2;">
+                                    DROP правил не найдено
+                                </p>
+                            </div>
+                        `;
+                                        } else {
+                        // Единый блок со всеми DROP правилами
+                        html += `
+                            <div style="
+                                background: linear-gradient(135deg, #0f1419 0%, #1a202c 100%);
+                                color: #e2e8f0;
+                                padding: 25px;
+                                border-radius: 20px;
+                                font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
+                                font-size: 14px;
+                                max-height: 700px;
+                                overflow-y: auto;
+                                border: 2px solid #e53e3e60;
+                                box-shadow: 0 15px 35px rgba(0,0,0,0.4);
+                                position: relative; z-index: 1;
+                            ">
+                        `;
+                        
+                        allDropRules.forEach((dropRule, index) => {
+                            const isEven = index % 2 === 0;
+                            
+                            // Парсим правило для извлечения информации
+                            const rule = dropRule.rule;
+                            let ipAddress = '';
+                            let direction = '';
+                            let port = '';
+                            let protocol = '';
+                            let chain = dropRule.chain;
+                            
+                            // Ищем IP адрес
+                            const ipMatch = rule.match(/\b(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\b/);
+                            if (ipMatch) {
+                                const foundIp = ipMatch[1];
+                                // Фильтруем служебные IP адреса
+                                if (foundIp !== '0.0.0.0' && 
+                                    foundIp !== '127.0.0.1' && 
+                                    foundIp !== '255.255.255.255' && 
+                                    foundIp !== '224.0.0.0') {
+                                    ipAddress = foundIp;
+                                }
+                            }
+                            
+                            // Пропускаем правила без реальных IP адресов
+                            if (!ipAddress) {
+                                return;
+                            }
+                            
+                            // Определяем направление
+                            if (rule.includes('-d ' + ipAddress)) {
+                                direction = 'входящий';
+                            } else if (rule.includes('-s ' + ipAddress)) {
+                                direction = 'исходящий';
+                            } else {
+                                direction = 'все направления';
+                            }
+                            
+                            // Ищем порт
+                            const portMatch = rule.match(/--dport (\d+)/);
+                            if (portMatch) {
+                                port = portMatch[1];
+                            } else {
+                                const sportMatch = rule.match(/--sport (\d+)/);
+                                if (sportMatch) {
+                                    port = sportMatch[1];
+                                }
+                            }
+                            
+                            // Ищем протокол
+                            if (rule.includes('-p tcp')) {
+                                protocol = 'TCP';
+                            } else if (rule.includes('-p udp')) {
+                                protocol = 'UDP';
+                            } else {
+                                protocol = 'Все протоколы';
+                            }
+                            
+                            // Ищем комментарий
+                            const commentMatch = rule.match(/blocked_ip:([^)]+)/);
+                            let comment = '';
+                            if (commentMatch) {
+                                comment = commentMatch[1];
+                            }
+                            
+                            html += `
+                                <div style="
+                                    padding: 20px 0;
+                                    border-bottom: ${index < allDropRules.length - 1 ? '1px solid rgba(229, 62, 62, 0.3)' : 'none'};
+                                    background: ${isEven ? 'rgba(229, 62, 62, 0.08)' : 'rgba(229, 62, 62, 0.03)'};
+                                    margin: ${isEven ? '0 -25px' : '0 -25px'};
+                                    padding-left: 25px;
+                                    padding-right: 25px;
+                                    display: flex;
+                                    align-items: flex-start;
+                                    justify-content: space-between;
+                                    gap: 20px;
+                                ">
+                                    
+                                    <div style="
+                                        background: rgba(229, 62, 62, 0.1);
+                                        padding: 15px;
+                                        border-radius: 12px;
+                                        border: 1px solid rgba(229, 62, 62, 0.2);
+                                        flex: 1;
+                                    ">
+                                        <div style="
+                                            display: grid;
+                                            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+                                            gap: 10px;
+                                            margin-bottom: 10px;
+                                        ">
+                                            <div style="
+                                                background: rgba(255,255,255,0.1);
+                                                padding: 8px 12px;
+                                                border-radius: 8px;
+                                                font-size: 13px;
+                                            ">
+                                                <strong style="color: #fc8181;">IP адрес:</strong> 
+                                                <span style="color: #e2e8f0; font-weight: 600;">${ipAddress || 'Не указан'}</span>
+                                            </div>
+                                            <div style="
+                                                background: rgba(255,255,255,0.1);
+                                                padding: 8px 12px;
+                                                border-radius: 8px;
+                                                font-size: 13px;
+                                            ">
+                                                <strong style="color: #fc8181;">Направление:</strong> 
+                                                <span style="color: #e2e8f0; font-weight: 600;">${direction}</span>
+                                            </div>
+                                            <div style="
+                                                background: rgba(255,255,255,0.1);
+                                                padding: 8px 12px;
+                                                border-radius: 8px;
+                                                font-size: 13px;
+                                            ">
+                                                <strong style="color: #fc8181;">Протокол:</strong> 
+                                                <span style="color: #e2e8f0; font-weight: 600;">${protocol}</span>
+                                            </div>
+                                            ${port ? `
+                                            <div style="
+                                                background: rgba(255,255,255,0.1);
+                                                padding: 8px 12px;
+                                                border-radius: 8px;
+                                                font-size: 13px;
+                                            ">
+                                                <strong style="color: #fc8181;">Порт:</strong> 
+                                                <span style="color: #e2e8f0; font-weight: 600;">${port}</span>
+                                            </div>
+                                            ` : ''}
+                                        </div>
+                                    </div>
+                                    
+                                    ${ipAddress ? `
+                                    <button onclick="removeIpBlockQuick('${ipAddress}')" style="
+                                        background: linear-gradient(135deg, #38a169 0%, #2f855a 100%);
+                                        border: none;
+                                        color: white;
+                                        padding: 12px 16px;
+                                        border-radius: 12px;
+                                        cursor: pointer;
+                                        font-weight: 600;
+                                        font-size: 13px;
+                                        transition: all 0.3s ease;
+                                        box-shadow: 0 4px 12px rgba(56, 161, 105, 0.3);
+                                        flex-shrink: 0;
+                                        align-self: flex-start;
+                                        margin-top: 15px;
+                                    " onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 6px 16px rgba(56, 161, 105, 0.4)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 12px rgba(56, 161, 105, 0.3)'">
+                                        <i class="fas fa-unlock" style="margin-right: 6px;"></i>
+                                        Разблокировать
+                                    </button>
+                                    ` : ''}
+                                </div>
+                            `;
+                        });
+                        
+                        html += `
+                                </div>
+                            </div>
+                        `;
+                    }
+                    
+                    html += `</div>`;
+                    
+                    showResult('ip-result', html, 'success');
+                } else {
+                    showResult('ip-result', 'Ошибка: ' + data.detail, 'error');
+                }
+            } catch (error) {
+                showResult('ip-result', 'Ошибка соединения: ' + error.message, 'error');
+            }
+        }
+
+        // Быстрая разблокировка IP
+        async function removeIpBlockQuick(ip) {
+            const deviceId = document.getElementById('ip-device').value;
+            if (!deviceId) {
+                showResult('ip-result', 'Выберите устройство', 'error');
+                return;
+            }
+            
+            // Извлекаем чистый IP из строки с направлением (например: "192.168.1.1 (входящий)" -> "192.168.1.1")
+            const cleanIp = ip.split(' (')[0].split(':')[0]; // Убираем направление и порт
+            
+            try {
+                const response = await fetch('/api/device_ip_unblock?device_id=' + deviceId, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ip: cleanIp })
+                });
+                
+                const data = await response.json();
+                if (response.ok) {
+                    // Показываем уведомление об успехе
+                    showQuickNotification(`IP ${cleanIp} разблокирован!`, 'success');
+                    // Обновляем список
+                    setTimeout(() => getRawIptables(), 1000);
+                } else {
+                    showQuickNotification('Ошибка: ' + data.detail, 'error');
+                }
+            } catch (error) {
+                showQuickNotification('Ошибка соединения: ' + error.message, 'error');
+            }
+        }
+
+
+
+        // Удаление всех IP блокировок
+        async function removeAllIpBlocks() {
+            const deviceId = document.getElementById('ip-device').value;
+            if (!deviceId) {
+                showResult('ip-result', 'Выберите устройство', 'error');
+                return;
+            }
+            
+            // Запрашиваем подтверждение
+            if (!confirm('Вы уверены, что хотите удалить ВСЕ заблокированные IP-адреса? Это действие нельзя отменить.')) {
+                return;
+            }
+            
+            // Показываем индикатор загрузки
+            showResult('ip-result', `
+                <div style="
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                    justify-content: center;
+                    padding: 40px 20px;
+                    background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+                    border-radius: 16px;
+                    color: white;
+                    text-align: center;
+                    margin-top: 15px;
+                ">
+                    <div style="
+                        width: 60px;
+                        height: 60px;
+                        border: 3px solid rgba(255,255,255,0.3);
+                        border-top: 3px solid white;
+                        border-radius: 50%;
+                        animation: spin 1s linear infinite;
+                        margin-bottom: 20px;
+                    "></div>
+                    <h4 style="margin: 0 0 10px 0; font-size: 18px; font-weight: 600;">
+                        <i class="fas fa-trash" style="margin-right: 8px;"></i>
+                        Удаление всех блокировок...
+                    </h4>
+                    <p style="margin: 0; opacity: 0.9; font-size: 14px;">
+                        Очищаем список заблокированных IP-адресов
+                    </p>
+                </div>
+            `, 'success');
+            
+            try {
+                const response = await fetch('/api/device_ip_clear_all?device_id=' + deviceId, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                
+                const data = await response.json();
+                if (response.ok) {
+                    // Показываем уведомление об успехе
+                    showQuickNotification('Все IP блокировки удалены!', 'success');
+                    
+                    // Показываем красивый результат
+                    setTimeout(() => {
+                        showResult('ip-result', `
+                            <div style="
+                                display: flex;
+                                flex-direction: column;
+                                align-items: center;
+                                justify-content: center;
+                                padding: 60px 20px;
+                                background: linear-gradient(135deg, #38a169 0%, #2f855a 100%);
+                                border-radius: 20px;
+                                color: white;
+                                text-align: center;
+                                margin-top: 15px;
+                                box-shadow: 0 10px 30px rgba(56, 161, 105, 0.3);
+                            ">
+                                <div style="
+                                    width: 80px;
+                                    height: 80px;
+                                    background: rgba(255,255,255,0.2);
+                                    border-radius: 50%;
+                                    display: flex;
+                                    align-items: center;
+                                    justify-content: center;
+                                    margin-bottom: 20px;
+                                    backdrop-filter: blur(10px);
+                                    border: 2px solid rgba(255,255,255,0.3);
+                                ">
+                                    <i class="fas fa-check" style="font-size: 32px;"></i>
+                                </div>
+                                <h3 style="margin: 0 0 10px 0; font-size: 24px; font-weight: 700;">
+                                    Все блокировки удалены
+                                </h3>
+                                <p style="margin: 0; opacity: 0.9; font-size: 16px;">
+                                    Список заблокированных IP-адресов очищен
+                                </p>
+                            </div>
+                        `, 'success');
+                    }, 1000);
+                } else {
+                    showResult('ip-result', 'Ошибка: ' + data.detail, 'error');
+                }
+            } catch (error) {
+                showResult('ip-result', 'Ошибка соединения: ' + error.message, 'error');
+            }
+        }
+
+
+
+        // Функция валидации IP-адреса
+        function validateIPAddress(ip) {
+            // Регулярное выражение для проверки IPv4
+            const ipv4Regex = /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
+            
+            if (!ip || ip.trim() === '') {
+                return { valid: false, message: 'IP-адрес не может быть пустым' };
+            }
+            
+            if (!ipv4Regex.test(ip.trim())) {
+                return { valid: false, message: 'Неверный формат IP-адреса. Используйте формат: 192.168.1.1' };
+            }
+            
+            return { valid: true, message: 'IP-адрес корректен' };
+        }
+
+        // Функция валидации порта
+        function validatePort(port) {
+            if (!port || port.trim() === '') {
+                return { valid: true, message: 'Порт не указан (будет заблокирован весь трафик)' };
+            }
+            
+            const portNum = parseInt(port);
+            if (isNaN(portNum) || portNum < 1 || portNum > 65535) {
+                return { valid: false, message: 'Порт должен быть числом от 1 до 65535' };
+            }
+            
+            return { valid: true, message: 'Порт корректен' };
+        }
+
+        // Функция валидации домена
+        function validateDomain(domain) {
+            if (!domain || domain.trim() === '') {
+                return { valid: false, message: 'Домен не может быть пустым' };
+            }
+            
+            // Регулярное выражение для проверки домена
+            const domainRegex = /^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/;
+            
+            if (!domainRegex.test(domain.trim())) {
+                return { valid: false, message: 'Неверный формат домена. Используйте формат: example.com' };
+            }
+            
+            // Проверяем, что домен не слишком длинный
+            if (domain.trim().length > 253) {
+                return { valid: false, message: 'Домен слишком длинный (максимум 253 символа)' };
+            }
+            
+            return { valid: true, message: 'Домен корректен' };
+        }
+
+        // Функция показа ошибки валидации
+        function showValidationError(inputId, message) {
+            const input = document.getElementById(inputId);
+            const errorDiv = document.getElementById(inputId + '-error');
+            
+            // Добавляем класс ошибки к input
+            input.classList.add('error');
+            
+            // Показываем сообщение об ошибке
+            if (errorDiv) {
+                errorDiv.textContent = message;
+                errorDiv.style.display = 'block';
+            } else {
+                // Создаем div для ошибки, если его нет
+                const newErrorDiv = document.createElement('div');
+                newErrorDiv.id = inputId + '-error';
+                newErrorDiv.className = 'validation-error';
+                newErrorDiv.textContent = message;
+                newErrorDiv.style.cssText = `
+                    color: #e53e3e;
+                    font-size: 12px;
+                    margin-top: 4px;
+                    font-weight: 500;
+                `;
+                input.parentNode.appendChild(newErrorDiv);
+            }
+        }
+
+        // Функция очистки ошибки валидации
+        function clearValidationError(inputId) {
+            const input = document.getElementById(inputId);
+            const errorDiv = document.getElementById(inputId + '-error');
+            
+            // Убираем класс ошибки с input
+            input.classList.remove('error');
+            
+            // Скрываем сообщение об ошибке
+            if (errorDiv) {
+                errorDiv.style.display = 'none';
+            }
+        }
+
+        // Универсальная функция отображения результатов
+        function showResult(elementId, message, type = 'success') {
+            const element = document.getElementById(elementId);
+            if (element) {
+                element.innerHTML = message;
+                element.className = `result-area ${type}`;
+            }
+        }
+
+        // Функция для показа быстрых уведомлений
+        function showQuickNotification(message, type = 'success') {
+            const notification = document.createElement('div');
+            notification.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                padding: 16px 24px;
+                border-radius: 12px;
+                color: white;
+                font-weight: 600;
+                font-size: 14px;
+                z-index: 10000;
+                box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+                transform: translateX(400px);
+                transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+                backdrop-filter: blur(10px);
+                border: 1px solid rgba(255,255,255,0.2);
+                max-width: 300px;
+                word-wrap: break-word;
             `;
-        } else {
-            tdEdit.innerHTML = `<span style='color:#888;'>Нет доступа</span>`;
+            
+            if (type === 'success') {
+                notification.style.background = 'linear-gradient(135deg, #38a169 0%, #2f855a 100%)';
+            } else if (type === 'error') {
+                notification.style.background = 'linear-gradient(135deg, #e53e3e 0%, #c53030 100%)';
+            } else {
+                notification.style.background = 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
+            }
+            
+            notification.innerHTML = `
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <i class="fas ${type === 'success' ? 'fa-check-circle' : type === 'error' ? 'fa-exclamation-circle' : 'fa-info-circle'}" style="font-size: 18px;"></i>
+                    <span>${message}</span>
+                </div>
+            `;
+            
+            document.body.appendChild(notification);
+            
+            // Анимация появления
+            setTimeout(() => {
+                notification.style.transform = 'translateX(0)';
+            }, 100);
+            
+            // Автоматическое удаление через 3 секунды
+            setTimeout(() => {
+                notification.style.transform = 'translateX(400px)';
+                setTimeout(() => {
+                    if (notification.parentNode) {
+                        notification.parentNode.removeChild(notification);
+                    }
+                }, 400);
+            }, 3000);
         }
-        tr.appendChild(tdEdit);
-        if (rule.enabled) {
-            enabledTbody.appendChild(tr);
-        } else {
-            disabledTbody.appendChild(tr);
-        }
-    }
-}
-
-function directionName(val) {
-    if (val === 'inbound') return 'Входящее';
-    if (val === 'outbound') return 'Исходящее';
-    return 'Любое';
-}
-function actionName(val) {
-    if (val === 'allow') return 'Разрешить';
-    if (val === 'deny') return 'Запретить';
-    return val;
-}
-// --- Модальное окно ---
-function openRuleModal(editId = null) {
-    document.getElementById('rule-modal').style.display = 'flex';
-    document.getElementById('rule-form').reset();
-    document.getElementById('rule-id').value = '';
-    document.getElementById('modal-title').innerText = editId ? 'Редактировать правило' : 'Новое правило';
-    if (editId) fillRuleForm(editId);
-}
-function closeRuleModal() {
-    document.getElementById('rule-modal').style.display = 'none';
-}
-async function fillRuleForm(id) {
-    const rules = await fetchRules();
-    const rule = rules.find(r => r.id === id);
-    if (!rule) return;
-    document.getElementById('rule-id').value = rule.id;
-    document.getElementById('rule-name').value = rule.name;
-    document.getElementById('rule-protocol').value = rule.protocol;
-    document.getElementById('rule-port').value = rule.port || '';
-    document.getElementById('rule-direction').value = rule.direction;
-    document.getElementById('rule-action').value = rule.action;
-    document.getElementById('rule-enabled').checked = rule.enabled;
-    document.getElementById('rule-comment').value = rule.comment || '';
-}
-// --- Валидация при добавлении/редактировании ---
-function validateRule(data, isEdit = false) {
-    // Проверка на дубли
-    const duplicate = allRulesCache.find(r =>
-        r.name.trim().toLowerCase() === data.name.trim().toLowerCase() &&
-        r.protocol === data.protocol &&
-        r.port === data.port &&
-        r.direction === data.direction &&
-        r.action === data.action &&
-        (!isEdit || r.id != data.id)
-    );
-    if (duplicate) return 'Такое правило уже существует!';
-    // Проверка порта
-    if (data.port) {
-        if (!/^\d+(-\d+)?$/.test(data.port.trim())) {
-            return 'Порт должен быть числом или диапазоном (например, 80 или 1000-2000)';
-        }
-        const [start, end] = data.port.split('-').map(Number);
-        if (isNaN(start) || (end && isNaN(end)) || start < 1 || (end && end < start)) {
-            return 'Некорректный диапазон портов';
-        }
-    }
-    return null;
-}
-// --- Модальное окно истории ---
-function openAuditModal() {
-    document.getElementById('audit-modal').style.display = 'flex';
-    loadAudit();
-}
-function closeAuditModal() {
-    document.getElementById('audit-modal').style.display = 'none';
-}
-async function loadAudit() {
-    const list = document.getElementById('audit-list');
-    list.innerHTML = 'Загрузка...';
-    try {
-        const res = await fetch('/api/rules/audit');
-        const data = await res.json();
-        if (!Array.isArray(data) || data.length === 0) {
-            list.innerHTML = '<div style="color:#888; text-align:center;">Нет истории изменений</div>';
-            return;
-        }
-        let html = '<ul style="padding-left:18px;">';
-        for (const ev of data) {
-            const roleText = ev.user_role ? ` [${ev.user_role}]` : '';
-            html += `<li><b>${ev.user || 'Система'}${roleText}</b> [${ev.time}] — <span style="color:#217346;">${ev.action}</span>: ${ev.details}</li>`;
-        }
-        html += '</ul>';
-        list.innerHTML = html;
-    } catch {
-        list.innerHTML = '<div style="color:#e53e3e;">Ошибка загрузки истории</div>';
-    }
-}
-// --- Переопределяем submit формы ---
-document.getElementById('rule-form').onsubmit = async function(e) {
-    e.preventDefault();
-    const id = document.getElementById('rule-id').value;
-    const data = {
-        id,
-        name: document.getElementById('rule-name').value,
-        protocol: document.getElementById('rule-protocol').value,
-        port: document.getElementById('rule-port').value,
-        direction: document.getElementById('rule-direction').value,
-        action: document.getElementById('rule-action').value,
-        enabled: document.getElementById('rule-enabled').checked,
-        comment: document.getElementById('rule-comment').value
-    };
-    // Валидация
-    const err = validateRule(data, !!id);
-    if (err) {
-        alert(err);
-        return;
-    }
-    
-    let success = false;
-    if (id) {
-        success = await updateRule(id, data);
-    } else {
-        success = await addRule(data);
-    }
-    
-    if (success) {
-        closeRuleModal();
-        // Обновляем кэш и перерисовываем
-        allRulesCache = await fetchRules();
-        renderRules();
-    }
-};
-// --- Удаление выбранного правила ---
-// Удаляю весь блок:
-// document.getElementById('delete-selected-btn').onclick = async function() { ... }
-// --- Выход ---
-function logout() {
-    window.location.href = '/logout';
-}
-// --- Инициализация ---
-window.addEventListener('DOMContentLoaded', async function() {
-    await fetchRules();
-    renderRules();
-    document.getElementById('search-input').oninput = renderRules;
-    document.getElementById('filter-protocol').onchange = renderRules;
-    document.getElementById('filter-action').onchange = renderRules;
-});
-// --- JS для удаления через модальное окно ---
-let ruleIdToDelete = null;
-window.onDeleteRule = function(id) {
-    ruleIdToDelete = id;
-    document.getElementById('delete-modal').style.display = 'flex';
-};
-document.getElementById('cancel-delete-rule').onclick = function() {
-    ruleIdToDelete = null;
-    document.getElementById('delete-modal').style.display = 'none';
-};
-document.getElementById('confirm-delete-rule').onclick = async function() {
-    if (ruleIdToDelete) {
-        await deleteRule(ruleIdToDelete);
-        ruleIdToDelete = null;
-        document.getElementById('delete-modal').style.display = 'none';
-        await renderRules();
-    }
-};
-window.onToggleRule = async function(id) {
-    await toggleRule(id);
-    await fetchRules();
-    renderRules();
-};
-window.onEditRule = async function(id) {
-    openRuleModal(id);
-    await fillRuleForm(id);
-};
 </script>
 </body>
 </html>
