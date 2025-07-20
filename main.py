@@ -8,6 +8,7 @@ from app.metrics import start_metrics_collection
 from app.connections_api import router as connections_router
 from app.network_monitor import router as network_monitor_router
 from app.firewall_devices_api import router as firewall_devices_router
+from app.rate_limiting import setup_rate_limiting
 
 # Создаём приложение
 app = FastAPI()
@@ -44,6 +45,8 @@ async def favicon_png():
 @app.on_event("startup")
 async def startup():
     await startup_event()
+    # Настраиваем Rate Limiting
+    await setup_rate_limiting(app)
     # Запускаем сбор метрик в фоновом режиме
     import asyncio
     asyncio.create_task(start_metrics_collection())
