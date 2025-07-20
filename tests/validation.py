@@ -1,4 +1,4 @@
-from pydantic import BaseModel, validator, Field
+from pydantic import BaseModel, field_validator, Field
 from typing import Optional, List
 import re
 import ipaddress
@@ -35,7 +35,8 @@ class FirewallRuleCreate(BaseModel):
     enabled: bool = Field(True, description="Активно ли правило")
     description: Optional[str] = Field(None, max_length=500, description="Описание правила")
     
-    @validator('name')
+    @field_validator('name')
+    @classmethod
     def validate_name(cls, v):
         """Валидация названия правила"""
         if not v.strip():
@@ -47,7 +48,8 @@ class FirewallRuleCreate(BaseModel):
         
         return v.strip()
     
-    @validator('source_ip', 'destination_ip')
+    @field_validator('source_ip', 'destination_ip')
+    @classmethod
     def validate_ip_address(cls, v):
         """Валидация IP адресов"""
         if v is None:
@@ -60,7 +62,8 @@ class FirewallRuleCreate(BaseModel):
         
         return v
     
-    @validator('source_port', 'destination_port')
+    @field_validator('source_port', 'destination_port')
+    @classmethod
     def validate_port(cls, v):
         """Валидация портов"""
         if v is None:
@@ -84,7 +87,8 @@ class FirewallRuleCreate(BaseModel):
         
         return v
     
-    @validator('description')
+    @field_validator('description')
+    @classmethod
     def validate_description(cls, v):
         """Валидация описания"""
         if v is None:
@@ -108,11 +112,26 @@ class FirewallRuleUpdate(BaseModel):
     enabled: Optional[bool] = None
     description: Optional[str] = Field(None, max_length=500)
     
-    # Используем те же валидаторы
-    _validate_name = validator('name', allow_reuse=True)(FirewallRuleCreate.__fields__['name'].validator)
-    _validate_ip = validator('source_ip', 'destination_ip', allow_reuse=True)(FirewallRuleCreate.__fields__['source_ip'].validator)
-    _validate_port = validator('source_port', 'destination_port', allow_reuse=True)(FirewallRuleCreate.__fields__['source_port'].validator)
-    _validate_description = validator('description', allow_reuse=True)(FirewallRuleCreate.__fields__['description'].validator)
+    # Используем те же валидаторы (исправлено для Pydantic V2)
+    @field_validator('name')
+    @classmethod
+    def _validate_name(cls, v):
+        return FirewallRuleCreate.validate_name(cls, v)
+    
+    @field_validator('source_ip', 'destination_ip')
+    @classmethod
+    def _validate_ip(cls, v):
+        return FirewallRuleCreate.validate_ip_address(cls, v)
+    
+    @field_validator('source_port', 'destination_port')
+    @classmethod
+    def _validate_port(cls, v):
+        return FirewallRuleCreate.validate_port(cls, v)
+    
+    @field_validator('description')
+    @classmethod
+    def _validate_description(cls, v):
+        return FirewallRuleCreate.validate_description(cls, v)
 
 class FirewallDeviceCreate(BaseModel):
     """Модель для создания firewall устройства"""
@@ -124,7 +143,8 @@ class FirewallDeviceCreate(BaseModel):
     device_type: str = Field(..., description="Тип устройства (cisco, juniper, etc.)")
     description: Optional[str] = Field(None, max_length=500)
     
-    @validator('name')
+    @field_validator('name')
+    @classmethod
     def validate_device_name(cls, v):
         """Валидация названия устройства"""
         if not v.strip():
@@ -136,7 +156,8 @@ class FirewallDeviceCreate(BaseModel):
         
         return v.strip()
     
-    @validator('ip_address')
+    @field_validator('ip_address')
+    @classmethod
     def validate_device_ip(cls, v):
         """Валидация IP адреса устройства"""
         try:
@@ -146,7 +167,8 @@ class FirewallDeviceCreate(BaseModel):
         
         return v
     
-    @validator('password')
+    @field_validator('password')
+    @classmethod
     def validate_password_strength(cls, v):
         """Валидация сложности пароля"""
         if len(v) < 8:
@@ -173,7 +195,8 @@ class UserCreate(BaseModel):
     role: UserRole = Field(UserRole.USER, description="Роль пользователя")
     email: Optional[str] = Field(None, description="Email пользователя")
     
-    @validator('username')
+    @field_validator('username')
+    @classmethod
     def validate_username(cls, v):
         """Валидация имени пользователя"""
         if not v.strip():
@@ -189,7 +212,8 @@ class UserCreate(BaseModel):
         
         return v.strip().lower()
     
-    @validator('password')
+    @field_validator('password')
+    @classmethod
     def validate_user_password(cls, v):
         """Валидация пароля пользователя"""
         if len(v) < 8:
@@ -206,7 +230,8 @@ class UserCreate(BaseModel):
         
         return v
     
-    @validator('email')
+    @field_validator('email')
+    @classmethod
     def validate_email(cls, v):
         """Валидация email"""
         if v is None:
@@ -223,7 +248,8 @@ class LoginRequest(BaseModel):
     username: str = Field(..., min_length=1, max_length=50)
     password: str = Field(..., min_length=1, max_length=100)
     
-    @validator('username')
+    @field_validator('username')
+    @classmethod
     def validate_login_username(cls, v):
         """Валидация имени пользователя при входе"""
         if not v.strip():
@@ -241,7 +267,8 @@ class IPBlockRequest(BaseModel):
     reason: str = Field(..., min_length=1, max_length=200, description="Причина блокировки")
     duration_hours: Optional[int] = Field(24, ge=1, le=8760, description="Длительность блокировки в часах")
     
-    @validator('ip_address')
+    @field_validator('ip_address')
+    @classmethod
     def validate_block_ip(cls, v):
         """Валидация IP адреса для блокировки"""
         try:
@@ -251,7 +278,8 @@ class IPBlockRequest(BaseModel):
         
         return v
     
-    @validator('reason')
+    @field_validator('reason')
+    @classmethod
     def validate_block_reason(cls, v):
         """Валидация причины блокировки"""
         if not v.strip():
@@ -268,7 +296,8 @@ class DNSBlockRequest(BaseModel):
     domain: str = Field(..., description="Домен для блокировки")
     reason: str = Field(..., min_length=1, max_length=200, description="Причина блокировки")
     
-    @validator('domain')
+    @field_validator('domain')
+    @classmethod
     def validate_domain(cls, v):
         """Валидация домена"""
         if not v.strip():
@@ -281,7 +310,8 @@ class DNSBlockRequest(BaseModel):
         
         return v.strip().lower()
     
-    @validator('reason')
+    @field_validator('reason')
+    @classmethod
     def validate_dns_block_reason(cls, v):
         """Валидация причины блокировки домена"""
         if not v.strip():

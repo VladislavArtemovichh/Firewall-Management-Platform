@@ -2,6 +2,7 @@ import pytest
 import sys
 import os
 import asyncio
+import signal
 from pathlib import Path
 
 # Добавляем корневую директорию проекта в PYTHONPATH
@@ -13,6 +14,25 @@ pytest_plugins = ['pytest_asyncio']
 
 from app.models import UserRole, FirewallRule, FirewallDeviceCreate, FirewallDeviceModel
 from app.security import login_attempts
+from app.database import (
+    create_users_table,
+    create_user_sessions_table,
+    create_firewall_devices_table,
+    create_firewall_rules_table,
+    create_device_configs_table,
+)
+from app.database_indexes import create_database_indexes, analyze_table_statistics
+
+@pytest.fixture(scope="session", autouse=True)
+def init_db_schema():
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(create_users_table())
+    loop.run_until_complete(create_user_sessions_table())
+    loop.run_until_complete(create_firewall_devices_table())
+    loop.run_until_complete(create_firewall_rules_table())
+    loop.run_until_complete(create_device_configs_table())
+    loop.run_until_complete(create_database_indexes())
+    loop.run_until_complete(analyze_table_statistics())
 
 @pytest.fixture
 def sample_firewall_rule():
@@ -75,3 +95,29 @@ def mock_time(monkeypatch):
     mock_time_obj = MockTime()
     monkeypatch.setattr("time.time", mock_time_obj.time)
     return mock_time_obj 
+
+# Настройка таймаута для тестов
+def pytest_configure(config):
+    """Настройка pytest для добавления таймаутов"""
+    # Добавляем таймаут 30 секунд для всех тестов
+    config.addinivalue_line(
+        "addopts", 
+        "--timeout=30"
+    )
+
+@pytest.fixture(autouse=True)
+def timeout_handler():
+    """Фикстура для обработки таймаутов в тестах"""
+    def timeout_handler(signum, frame):
+        raise TimeoutError("Test timeout")
+    
+    # Устанавливаем обработчик сигнала SIGALRM (только для Unix)
+    if hasattr(signal, 'SIGALRM'):
+        signal.signal(signal.SIGALRM, timeout_handler)
+        signal.alarm(30)  # 30 секунд таймаут
+    
+    yield
+    
+    # Отменяем таймаут
+    if hasattr(signal, 'SIGALRM'):
+        signal.alarm(0) 

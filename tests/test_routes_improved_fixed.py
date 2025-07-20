@@ -322,7 +322,7 @@ class TestMiddleware:
         # Проверяем, что ответ содержит ожидаемые данные
         data = response.json()
         assert "status" in data
-        assert data["status"] == "healthy"
+        assert data["status"] == "ok"
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"]) 
