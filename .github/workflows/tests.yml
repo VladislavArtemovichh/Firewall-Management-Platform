@@ -84,25 +84,7 @@ jobs:
           sleep 2
         done
     
-    - name: Install PDF tools
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y wkhtmltopdf
-        pip install pytest-html
-
-    - name: Run tests and generate HTML report
-      run: |
-        pytest --html=report.html --self-contained-html
-
-    - name: Convert HTML report to PDF
-      run: |
-        wkhtmltopdf report.html report.pdf
-
-    - name: Upload PDF test report
-      uses: actions/upload-artifact@v4
-      with:
-        name: test-report-pdf
-        path: report.pdf
+    # Удалены шаги генерации и загрузки pytest-html отчёта
     
     - name: Run tests with coverage
       env:
@@ -113,6 +95,16 @@ jobs:
         DB_PASSWORD: test_password
       run: |
         python -m pytest tests/ -v --cov=app
+    
+    - name: Generate coverage HTML report
+      run: |
+        coverage html
+
+    - name: Upload coverage HTML report
+      uses: actions/upload-artifact@v4
+      with:
+        name: coverage-html
+        path: htmlcov/
     
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v3
