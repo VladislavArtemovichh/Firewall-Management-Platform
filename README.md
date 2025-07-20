@@ -4,8 +4,8 @@
 
 [![Tests](https://github.com/otec2006/Firewall-Management-Platform/actions/workflows/tests.yml/badge.svg)](https://github.com/otec2006/Firewall-Management-Platform/actions/workflows/tests.yml)
 [![Security](https://github.com/otec2006/Firewall-Management-Platform/actions/workflows/security.yml/badge.svg)](https://github.com/otec2006/Firewall-Management-Platform/actions/workflows/security.yml)
-[![Coverage](https://codecov.io/gh/otec2006/Firewall-Management-Platform/branch/main/graph/badge.svg)](https://codecov.io/gh/otec2006/Firewall-Management-Platform)
-> Покрытие кода обновляется автоматически из GitHub Actions (workflow [tests.yml](.github/workflows/tests.yml)) после каждого пуша и pull request. Для просмотра подробного отчёта используйте артефакт coverage-html или переходите по ссылке на Codecov.
+[![Coverage Workflow](https://github.com/otec2006/Firewall-Management-Platform/actions/workflows/coverage.yml/badge.svg)](https://github.com/otec2006/Firewall-Management-Platform/actions/workflows/coverage.yml)
+[![Codecov](https://codecov.io/gh/otec2006/Firewall-Management-Platform/branch/main/graph/badge.svg)](https://codecov.io/gh/otec2006/Firewall-Management-Platform)
 [![Python](https://img.shields.io/badge/python-3.12-blue)](https://python.org)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.104+-green)](https://fastapi.tiangolo.com)
 [![Docker](https://img.shields.io/badge/docker-ready-blue)](https://docker.com)
