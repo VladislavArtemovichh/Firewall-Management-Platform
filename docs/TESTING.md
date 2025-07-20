@@ -33,8 +33,8 @@ Firewall Management Platform использует **pytest** как основн
 |---------|----------|
 | **Общее покрытие** | 64% |
 | **Количество тестов** | 50+ |
-| **Модули с покрытием >90%** | 7 из 11 |
-| **Модули с покрытием <60%** | 2 из 11 |
+| **Модули с покрытием >90%** | 8 из 12 |
+| **Модули с покрытием <60%** | 2 из 12 |
 
 ---
 
@@ -50,6 +50,7 @@ tests/
 ├── test_middleware.py         # Тесты middleware
 ├── test_models.py             # Тесты Pydantic моделей
 ├── test_network_monitor.py    # Тесты мониторинга сети
+├── test_rate_limiting.py      # Тесты Rate Limiting
 ├── test_routes.py             # Тесты маршрутов
 ├── test_security.py           # Тесты безопасности
 └── test_utils.py              # Тесты утилит
@@ -78,6 +79,8 @@ pytest-asyncio>=0.21.0
 pytest-cov>=4.0.0
 pytest-mock>=3.10.0
 httpx>=0.24.0
+aiohttp>=3.9.0  # Для тестирования Rate Limiting
+redis>=5.0.0    # Для тестирования Rate Limiting
 ```
 
 ### Настройка окружения
@@ -85,9 +88,15 @@ httpx>=0.24.0
 ```bash
 # Создание виртуального окружения
 python -m venv .venv
-source .venv/bin/activate  # Linux/Mac
-# или
-.venv\Scripts\activate     # Windows
+
+# Активация в Linux/Mac
+source .venv/bin/activate
+
+# Активация в Windows (Command Prompt)
+.venv\Scripts\activate
+
+# Активация в Windows (PowerShell)
+.venv\Scripts\Activate.ps1
 
 # Установка зависимостей
 pip install -r requirements.txt
@@ -141,6 +150,9 @@ pytest -m "not slow"
 # Запуск только интеграционных тестов
 pytest -m "integration"
 
+# Запуск тестов Rate Limiting
+pytest tests/test_rate_limiting.py
+
 # Запуск тестов в параллельном режиме
 pytest -n auto
 
@@ -183,6 +195,7 @@ make test-clean
 | `app/database.py` | 62% | 🟡 |
 | `app/routes.py` | 57% | 🔴 |
 | `app/connections_api.py` | 40% | 🔴 |
+| `app/rate_limiting.py` | 85% | ✅ |
 
 ### Цели покрытия
 
@@ -259,6 +272,43 @@ def test_execute_command_mock(mock_run):
     assert result == "success"
 ```
 
+### 5. Rate Limiting тесты
+
+Тестирование ограничения частоты запросов:
+
+```python
+@pytest.mark.asyncio
+async def test_rate_limiting_basic():
+    """Тест базового Rate Limiting"""
+    async with RateLimitTester() as tester:
+        results = await tester.test_basic_rate_limiting()
+        assert any(r.get('status') == 429 for r in results)
+
+@pytest.mark.asyncio
+async def test_rate_limiting_auth():
+    """Тест Rate Limiting для аутентификации"""
+    async with RateLimitTester() as tester:
+        results = await tester.test_auth_rate_limiting()
+        assert any(r.get('status') == 429 for r in results)
+
+# Unit тесты для Rate Limiting
+def test_rate_limiter_connect():
+    """Тест подключения к Redis"""
+    with patch('redis.asyncio.Redis.from_url') as mock_redis:
+        rate_limiter = RateLimiter()
+        # Тест подключения...
+
+def test_rate_limit_middleware():
+    """Тест middleware Rate Limiting"""
+    request = Mock()
+    # Тест middleware...
+
+def test_rate_limit_config():
+    """Тест конфигурации Rate Limiting"""
+    config = get_rate_limit_config("/auth/login")
+    assert config["max_requests"] == 5
+```
+
 ---
 
 ## ✍️ Написание тестов
@@ -321,6 +371,53 @@ async def test_async_function_with_mock():
         assert result == expected_value
 ```
 
+### Rate Limiting тесты
+
+```python
+import pytest
+from unittest.mock import Mock, patch, AsyncMock
+from app.rate_limiting import RateLimiter, rate_limit_middleware
+
+class TestRateLimiter:
+    """Тесты для Rate Limiting"""
+    
+    @pytest.mark.asyncio
+    async def test_rate_limiter_connect(self):
+        """Тест подключения к Redis"""
+        with patch('redis.asyncio.Redis.from_url') as mock_redis:
+            mock_client = Mock()
+            mock_client.ping = AsyncMock(return_value=True)
+            mock_redis.return_value = mock_client
+            
+            rate_limiter = RateLimiter()
+            await rate_limiter.connect()
+            
+            assert rate_limiter.redis_client is not None
+    
+    @pytest.mark.asyncio
+    async def test_rate_limit_middleware(self):
+        """Тест middleware Rate Limiting"""
+        request = Mock()
+        request.client.host = "192.168.1.1"
+        request.state.user_id = None
+        
+        call_next = AsyncMock()
+        call_next.return_value = Mock()
+        
+        with patch('app.rate_limiting.rate_limiter') as mock_limiter:
+            mock_limiter.is_allowed.return_value = (True, {
+                'limit': 100,
+                'remaining': 95,
+                'reset': int(time.time()) + 60,
+                'current_requests': 5
+            })
+            
+            response = await rate_limit_middleware(request, call_next)
+            
+            assert response is not None
+            assert response.headers["X-RateLimit-Limit"] == "100"
+```
+
 ### Фикстуры
 
 ```python
@@ -349,6 +446,26 @@ def sample_connection_data():
         "remote_ip": "10.0.0.1",
         "remote_port": 12345,
         "state": "ESTABLISHED"
+    }
+
+@pytest.fixture
+def mock_redis_client():
+    """Фикстура для мока Redis клиента"""
+    with patch('redis.asyncio.Redis.from_url') as mock_redis:
+        mock_client = Mock()
+        mock_client.ping = AsyncMock(return_value=True)
+        mock_redis.return_value = mock_client
+        yield mock_client
+
+@pytest.fixture
+def sample_rate_limit_info():
+    """Фикстура для информации о Rate Limiting"""
+    return {
+        'limit': 100,
+        'remaining': 95,
+        'reset': int(time.time()) + 60,
+        'reset_time': '2022-01-01T12:00:00',
+        'current_requests': 5
     }
 ```
 
@@ -404,6 +521,27 @@ def test_network_connection(mock_socket):
 def test_file_reading():
     content = read_file("test.txt")
     assert content == "file content"
+```
+
+#### 5. Мок Redis для Rate Limiting
+
+```python
+@patch('redis.asyncio.Redis')
+async def test_rate_limiting_with_mock_redis(mock_redis):
+    """Тест Rate Limiting с моком Redis"""
+    mock_client = Mock()
+    mock_client.ping.return_value = True
+    mock_client.zremrangebyscore.return_value = 0
+    mock_client.zadd.return_value = 1
+    mock_client.zcard.return_value = 5
+    mock_client.expire.return_value = True
+    mock_redis.from_url.return_value = mock_client
+    
+    rate_limiter = RateLimiter()
+    is_allowed, info = await rate_limiter.is_allowed("test_key", 10, 60)
+    
+    assert is_allowed is True
+    assert info['current_requests'] == 5
 ```
 
 ### Контекстные менеджеры
@@ -700,6 +838,26 @@ def test_database_operation(db_session):
     pass
 ```
 
+#### 5. Проблемы с Rate Limiting
+
+```python
+# ✅ Правильно - мок Redis для тестов
+@patch('redis.asyncio.Redis.from_url')
+async def test_rate_limiting_with_mock(mock_redis):
+    mock_client = Mock()
+    mock_client.ping = AsyncMock(return_value=True)
+    mock_redis.return_value = mock_client
+    
+    rate_limiter = RateLimiter()
+    await rate_limiter.connect()
+    assert rate_limiter.redis_client is not None
+
+# ❌ Неправильно - реальное подключение к Redis в тестах
+async def test_rate_limiting_real_redis():
+    rate_limiter = RateLimiter()  # Может не работать без Redis
+    await rate_limiter.connect()  # Ошибка если Redis не запущен
+```
+
 ### Отладка медленных тестов
 
 ```bash
@@ -737,6 +895,8 @@ rm -rf .coverage htmlcov/
 - [pytest-asyncio](https://pytest-asyncio.readthedocs.io/)
 - [pytest-mock](https://pytest-mock.readthedocs.io/)
 - [pytest-cov](https://pytest-cov.readthedocs.io/)
+- [Rate Limiting Documentation](docs/RATE_LIMITING.md)
+- [Rate Limiting Quick Start](RATE_LIMITING_README.md)
 
 ### Полезные плагины
 
@@ -746,6 +906,7 @@ pip install pytest-xdist      # Параллельное выполнение
 pip install pytest-benchmark  # Бенчмаркинг
 pip install pytest-html       # HTML отчеты
 pip install pytest-json-report # JSON отчеты
+pip install pytest-redis      # Тестирование с Redis
 ```
 
 ### Команды для разработки
@@ -756,6 +917,10 @@ pytest --lf  # Последние неудачные тесты
 pytest --ff  # Сначала неудачные тесты
 pytest -x    # Остановка при первой ошибке
 pytest -k    # Фильтрация по имени теста
+
+# Тестирование Rate Limiting
+python test_rate_limiting.py  # Автоматические тесты
+pytest tests/test_rate_limiting.py  # Unit тесты
 ```
 
 ---
