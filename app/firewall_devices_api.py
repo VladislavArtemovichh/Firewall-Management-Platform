@@ -502,30 +502,30 @@ async def api_add_ip_block(device_id: int = Query(...), request_data: dict = Bod
                 # Блокируем конкретный порт
                 if direction in ['in', 'both']:
                     # Блокируем входящий трафик к IP на указанном порту
-                    cmd1 = f"iptables -A FORWARD -d {ip} -p tcp --dport {port} -j DROP -m comment --comment 'blocked_ip:{ip}:{port}:in'"
+                    cmd1 = f"iptables -I FORWARD 1 -d {ip} -p tcp --dport {port} -j DROP -m comment --comment 'blocked_ip:{ip}:{port}:in'"
                     ssh.send_command(cmd1, read_timeout=10)
                     logging.info(f"[IP-LOG] Added IN rule for IP {ip}:{port} with comment: blocked_ip:{ip}:{port}:in")
                 
                 if direction in ['out', 'both']:
                     # Блокируем исходящий трафик от IP с указанного порта
-                    cmd2 = f"iptables -A FORWARD -s {ip} -p tcp --sport {port} -j DROP -m comment --comment 'blocked_ip:{ip}:{port}:out'"
+                    cmd2 = f"iptables -I FORWARD 1 -s {ip} -p tcp --sport {port} -j DROP -m comment --comment 'blocked_ip:{ip}:{port}:out'"
                     ssh.send_command(cmd2, read_timeout=10)
                     logging.info(f"[IP-LOG] Added OUT rule for IP {ip}:{port} with comment: blocked_ip:{ip}:{port}:out")
             else:
                 # Блокируем весь трафик
                 if direction in ['in', 'both']:
                     # Блокируем весь входящий трафик к IP (FORWARD + INPUT)
-                    cmd1 = f"iptables -A FORWARD -d {ip} -j DROP -m comment --comment 'blocked_ip:{ip}:in'"
+                    cmd1 = f"iptables -I FORWARD 1 -d {ip} -j DROP -m comment --comment 'blocked_ip:{ip}:in'"
                     ssh.send_command(cmd1, read_timeout=10)
-                    cmd1_input = f"iptables -A INPUT -d {ip} -j DROP -m comment --comment 'blocked_ip:{ip}:in'"
+                    cmd1_input = f"iptables -I INPUT 1 -d {ip} -j DROP -m comment --comment 'blocked_ip:{ip}:in'"
                     ssh.send_command(cmd1_input, read_timeout=10)
                     logging.info(f"[IP-LOG] Added IN rules for IP {ip} (FORWARD + INPUT)")
                 
                 if direction in ['out', 'both']:
                     # Блокируем весь исходящий трафик от IP (FORWARD + OUTPUT)
-                    cmd2 = f"iptables -A FORWARD -s {ip} -j DROP -m comment --comment 'blocked_ip:{ip}:out'"
+                    cmd2 = f"iptables -I FORWARD 1 -s {ip} -j DROP -m comment --comment 'blocked_ip:{ip}:out'"
                     ssh.send_command(cmd2, read_timeout=10)
-                    cmd2_output = f"iptables -A OUTPUT -d {ip} -j DROP -m comment --comment 'blocked_ip:{ip}:out'"
+                    cmd2_output = f"iptables -I OUTPUT 1 -d {ip} -j DROP -m comment --comment 'blocked_ip:{ip}:out'"
                     ssh.send_command(cmd2_output, read_timeout=10)
                     logging.info(f"[IP-LOG] Added OUT rules for IP {ip} (FORWARD + OUTPUT)")
             
