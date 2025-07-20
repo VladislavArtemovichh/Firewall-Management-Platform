@@ -1,0 +1,36 @@
+# Bandit configuration file
+# https://bandit.readthedocs.io/en/latest/config.html
+
+# Исключаемые директории
+exclude_dirs: ['tests', 'docs', 'scripts', '.venv', 'venv', '__pycache__']
+
+# Исключаемые файлы
+exclude: ['*/test_*.py', '*/tests/*', '*/migrations/*']
+
+# Уровень детализации
+verbose: true
+
+# Формат вывода
+output_format: json
+
+# Уровень уверенности (low, medium, high)
+confidence: medium
+
+# Уровень серьезности (low, medium, high)
+severity: medium
+
+# Количество процессов
+jobs: 4
+
+# Исключаемые тесты
+skips: ['B101', 'B601']  # B101: assert_used, B601: paramiko_calls
+
+# Включенные тесты (если нужно ограничить)
+# tests: ['B102', 'B103', 'B104']
+
+# Настройки для конкретных тестов
+any_other_function_with_shell_equals_true:
+  no_shell: ['subprocess.Popen', 'subprocess.call', 'subprocess.check_call', 'subprocess.check_output', 'subprocess.run']
+
+# Игнорировать определенные строки
+# ignore: ['B101:1', 'B102:5'] 
