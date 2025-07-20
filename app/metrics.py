@@ -1,12 +1,10 @@
-import time
-import psutil
 import asyncio
+from collections import Counter, deque
+from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional
-from dataclasses import dataclass, field
-from collections import defaultdict, deque
-import json
-from collections import Counter
+
+import psutil
+
 
 @dataclass
 class SystemMetrics:
@@ -60,12 +58,12 @@ class MetricsCollector:
         # Сетевые метрики
         self.last_network_stats = None
         
-    def collect_system_metrics(self) -> Optional[SystemMetrics]:
+    def collect_system_metrics(self) -> SystemMetrics | None:
         """Сбор системных метрик"""
         try:
             cpu_percent = psutil.cpu_percent(interval=1)
             memory = psutil.virtual_memory()
-            disk = psutil.disk_usage('/')
+            disk = psutil.disk_usage("/")
             
             # Сетевые метрики
             network_stats = psutil.net_io_counters()
@@ -126,7 +124,7 @@ class MetricsCollector:
         self.security_metrics.append(metrics)
         return metrics
     
-    def record_request(self, response_time: float, is_error: bool = False, error_code: Optional[int] = None):
+    def record_request(self, response_time: float, is_error: bool = False, error_code: int | None = None):
         """Запись метрик запроса"""
         self.request_count += 1
         if is_error:
@@ -148,7 +146,7 @@ class MetricsCollector:
         """Запись блокировки брандмауэра"""
         self.firewall_blocks += 1
     
-    def get_metrics_summary(self, hours: int = 24) -> Dict:
+    def get_metrics_summary(self, hours: int = 24) -> dict:
         """Получение сводки метрик за указанное время"""
         cutoff_time = datetime.now() - timedelta(hours=hours)
         
@@ -158,7 +156,7 @@ class MetricsCollector:
         recent_security = [m for m in self.security_metrics if m.timestamp > cutoff_time]
         
         if not recent_system:
-            print('[METRICS] Нет данных системных метрик, возвращаю нули')
+            print("[METRICS] Нет данных системных метрик, возвращаю нули")
             return {
                 "system": {
                     "avg_cpu_percent": 0,
@@ -231,7 +229,7 @@ class MetricsCollector:
             ]
         }
     
-    def get_chart_data(self, hours: int = 24) -> Dict:
+    def get_chart_data(self, hours: int = 24) -> dict:
         """Получение данных для графиков"""
         cutoff_time = datetime.now() - timedelta(hours=hours)
         

@@ -1,6 +1,9 @@
-import asyncpg
 import logging
-from db_config import DB_USER, DB_PASSWORD, DB_NAME, DB_HOST, DB_PORT
+
+import asyncpg
+
+from db_config import DB_HOST, DB_NAME, DB_PASSWORD, DB_PORT, DB_USER
+
 
 async def create_database_indexes():
     """
@@ -48,247 +51,247 @@ async def create_users_indexes(conn):
     logging.info("[DB-INDEXES] Creating indexes for users table")
     
     # Индекс по username для быстрого поиска пользователей
-    await conn.execute('''
+    await conn.execute("""
         CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_users_username 
         ON users(username);
-    ''')
+    """)
     
     # Индекс по role для фильтрации по ролям
-    await conn.execute('''
+    await conn.execute("""
         CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_users_role 
         ON users(role);
-    ''')
+    """)
     
     # Составной индекс для аутентификации
-    await conn.execute('''
+    await conn.execute("""
         CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_users_auth 
         ON users(username, password);
-    ''')
+    """)
 
 async def create_user_sessions_indexes(conn):
     """Создает индексы для таблицы user_sessions"""
     logging.info("[DB-INDEXES] Creating indexes for user_sessions table")
     
     # Индекс по user_id для быстрого поиска сессий пользователя
-    await conn.execute('''
+    await conn.execute("""
         CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_user_sessions_user_id 
         ON user_sessions(user_id);
-    ''')
+    """)
     
     # Индекс по session_token для быстрого поиска сессии
-    await conn.execute('''
+    await conn.execute("""
         CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_user_sessions_token 
         ON user_sessions(session_token);
-    ''')
+    """)
     
     # Индекс по is_online для фильтрации онлайн пользователей
-    await conn.execute('''
+    await conn.execute("""
         CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_user_sessions_online 
         ON user_sessions(is_online);
-    ''')
+    """)
     
     # Индекс по last_activity для очистки старых сессий
-    await conn.execute('''
+    await conn.execute("""
         CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_user_sessions_last_activity 
         ON user_sessions(last_activity);
-    ''')
+    """)
     
     # Индекс по created_at для анализа активности
-    await conn.execute('''
+    await conn.execute("""
         CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_user_sessions_created_at 
         ON user_sessions(created_at);
-    ''')
+    """)
     
     # Составной индекс для поиска активных сессий пользователя
-    await conn.execute('''
+    await conn.execute("""
         CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_user_sessions_active 
         ON user_sessions(user_id, is_online, last_activity);
-    ''')
+    """)
 
 async def create_firewall_devices_indexes(conn):
     """Создает индексы для таблицы firewall_devices"""
     logging.info("[DB-INDEXES] Creating indexes for firewall_devices table")
     
     # Индекс по ip для быстрого поиска устройства по IP
-    await conn.execute('''
+    await conn.execute("""
         CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_firewall_devices_ip 
         ON firewall_devices(ip);
-    ''')
+    """)
     
     # Индекс по name для поиска по имени устройства
-    await conn.execute('''
+    await conn.execute("""
         CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_firewall_devices_name 
         ON firewall_devices(name);
-    ''')
+    """)
     
     # Индекс по type для фильтрации по типу устройства
-    await conn.execute('''
+    await conn.execute("""
         CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_firewall_devices_type 
         ON firewall_devices(type);
-    ''')
+    """)
     
     # Индекс по status для фильтрации по статусу
-    await conn.execute('''
+    await conn.execute("""
         CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_firewall_devices_status 
         ON firewall_devices(status);
-    ''')
+    """)
     
     # Составной индекс для поиска устройств по типу и статусу
-    await conn.execute('''
+    await conn.execute("""
         CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_firewall_devices_type_status 
         ON firewall_devices(type, status);
-    ''')
+    """)
 
 async def create_firewall_rules_indexes(conn):
     """Создает индексы для таблицы firewall_rules"""
     logging.info("[DB-INDEXES] Creating indexes for firewall_rules table")
     
     # Индекс по enabled для фильтрации активных/неактивных правил
-    await conn.execute('''
+    await conn.execute("""
         CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_firewall_rules_enabled 
         ON firewall_rules(enabled);
-    ''')
+    """)
     
     # Индекс по protocol для фильтрации по протоколу
-    await conn.execute('''
+    await conn.execute("""
         CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_firewall_rules_protocol 
         ON firewall_rules(protocol);
-    ''')
+    """)
     
     # Индекс по action для фильтрации по действию
-    await conn.execute('''
+    await conn.execute("""
         CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_firewall_rules_action 
         ON firewall_rules(action);
-    ''')
+    """)
     
     # Индекс по direction для фильтрации по направлению
-    await conn.execute('''
+    await conn.execute("""
         CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_firewall_rules_direction 
         ON firewall_rules(direction);
-    ''')
+    """)
     
     # Индекс по port для поиска правил по порту
-    await conn.execute('''
+    await conn.execute("""
         CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_firewall_rules_port 
         ON firewall_rules(port);
-    ''')
+    """)
     
     # Составной индекс для поиска правил по протоколу и порту
-    await conn.execute('''
+    await conn.execute("""
         CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_firewall_rules_protocol_port 
         ON firewall_rules(protocol, port);
-    ''')
+    """)
     
     # Составной индекс для поиска активных правил по протоколу
-    await conn.execute('''
+    await conn.execute("""
         CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_firewall_rules_enabled_protocol 
         ON firewall_rules(enabled, protocol);
-    ''')
+    """)
 
 async def create_audit_log_indexes(conn):
     """Создает индексы для таблицы audit_log"""
     logging.info("[DB-INDEXES] Creating indexes for audit_log table")
     
     # Индекс по username для поиска действий пользователя
-    await conn.execute('''
+    await conn.execute("""
         CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_audit_log_username 
         ON audit_log(username);
-    ''')
+    """)
     
     # Индекс по user_role для фильтрации по роли
-    await conn.execute('''
+    await conn.execute("""
         CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_audit_log_user_role 
         ON audit_log(user_role);
-    ''')
+    """)
     
     # Индекс по action для фильтрации по типу действия
-    await conn.execute('''
+    await conn.execute("""
         CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_audit_log_action 
         ON audit_log(action);
-    ''')
+    """)
     
     # Индекс по time для поиска по времени
-    await conn.execute('''
+    await conn.execute("""
         CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_audit_log_time 
         ON audit_log(time);
-    ''')
+    """)
     
     # Составной индекс для поиска действий пользователя по времени
-    await conn.execute('''
+    await conn.execute("""
         CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_audit_log_username_time 
         ON audit_log(username, time);
-    ''')
+    """)
     
     # Составной индекс для поиска действий по роли и времени
-    await conn.execute('''
+    await conn.execute("""
         CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_audit_log_role_time 
         ON audit_log(user_role, time);
-    ''')
+    """)
 
 async def create_device_configs_indexes(conn):
     """Создает индексы для таблиц конфигураций устройств"""
     logging.info("[DB-INDEXES] Creating indexes for device configs tables")
     
     # Индексы для таблицы device_configs
-    await conn.execute('''
+    await conn.execute("""
         CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_device_configs_device_id 
         ON device_configs(device_id);
-    ''')
+    """)
     
-    await conn.execute('''
+    await conn.execute("""
         CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_device_configs_updated_at 
         ON device_configs(updated_at);
-    ''')
+    """)
     
     # Составной индекс для получения последней конфигурации
-    await conn.execute('''
+    await conn.execute("""
         CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_device_configs_device_updated 
         ON device_configs(device_id, updated_at DESC);
-    ''')
+    """)
     
     # Индексы для таблицы device_config_backups
-    await conn.execute('''
+    await conn.execute("""
         CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_device_config_backups_device_id 
         ON device_config_backups(device_id);
-    ''')
+    """)
     
-    await conn.execute('''
+    await conn.execute("""
         CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_device_config_backups_created_at 
         ON device_config_backups(created_at);
-    ''')
+    """)
     
     # Составной индекс для получения резервных копий по времени
-    await conn.execute('''
+    await conn.execute("""
         CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_device_config_backups_device_created 
         ON device_config_backups(device_id, created_at DESC);
-    ''')
+    """)
     
     # Индексы для таблицы device_config_audit
-    await conn.execute('''
+    await conn.execute("""
         CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_device_config_audit_device_id 
         ON device_config_audit(device_id);
-    ''')
+    """)
     
-    await conn.execute('''
+    await conn.execute("""
         CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_device_config_audit_username 
         ON device_config_audit(username);
-    ''')
+    """)
     
-    await conn.execute('''
+    await conn.execute("""
         CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_device_config_audit_action 
         ON device_config_audit(action);
-    ''')
+    """)
     
-    await conn.execute('''
+    await conn.execute("""
         CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_device_config_audit_time 
         ON device_config_audit(time);
-    ''')
+    """)
     
     # Составной индекс для поиска аудита устройства по времени
-    await conn.execute('''
+    await conn.execute("""
         CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_device_config_audit_device_time 
         ON device_config_audit(device_id, time DESC);
-    ''')
+    """)
 
 async def analyze_table_statistics():
     """
@@ -307,13 +310,13 @@ async def analyze_table_statistics():
     try:
         # Анализируем все таблицы
         tables = [
-            'users', 'user_sessions', 'firewall_devices', 
-            'firewall_rules', 'audit_log', 'device_configs',
-            'device_config_backups', 'device_config_audit'
+            "users", "user_sessions", "firewall_devices", 
+            "firewall_rules", "audit_log", "device_configs",
+            "device_config_backups", "device_config_audit"
         ]
         
         for table in tables:
-            await conn.execute(f'ANALYZE {table};')
+            await conn.execute(f"ANALYZE {table};")
             logging.info(f"[DB-INDEXES] Analyzed table: {table}")
         
         logging.info("[DB-INDEXES] All table statistics updated")
@@ -340,7 +343,7 @@ async def get_index_usage_statistics():
     
     try:
         # Запрос для получения статистики использования индексов
-        query = '''
+        query = """
         SELECT 
             schemaname,
             tablename,
@@ -351,7 +354,7 @@ async def get_index_usage_statistics():
         FROM pg_stat_user_indexes 
         WHERE schemaname = 'public'
         ORDER BY idx_scan DESC;
-        '''
+        """
         
         rows = await conn.fetch(query)
         
@@ -383,7 +386,7 @@ async def optimize_slow_queries():
     
     try:
         # Получаем медленные запросы
-        slow_queries_query = '''
+        slow_queries_query = """
         SELECT 
             query,
             calls,
@@ -394,7 +397,7 @@ async def optimize_slow_queries():
         WHERE mean_time > 100  -- запросы медленнее 100ms
         ORDER BY mean_time DESC
         LIMIT 10;
-        '''
+        """
         
         try:
             rows = await conn.fetch(slow_queries_query)

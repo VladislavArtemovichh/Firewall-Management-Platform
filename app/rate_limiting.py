@@ -1,17 +1,17 @@
 import time
-import asyncio
-from typing import Optional, Dict, Tuple
-from fastapi import Request, HTTPException, Response
-from fastapi.responses import JSONResponse
-import redis.asyncio as redis
 from datetime import datetime, timedelta
+
+import redis.asyncio as redis
+from fastapi import HTTPException, Request
+from fastapi.responses import JSONResponse
+
 
 class RateLimiter:
     """Rate Limiter с использованием Redis"""
     
     def __init__(self, redis_url: str = "redis://localhost:6379"):
         self.redis_url = redis_url
-        self.redis_client: Optional[redis.Redis] = None
+        self.redis_client: redis.Redis | None = None
         
     async def connect(self):
         """Подключение к Redis"""
@@ -29,7 +29,7 @@ class RateLimiter:
         key: str, 
         max_requests: int = 100, 
         window_seconds: int = 60
-    ) -> Tuple[bool, Dict]:
+    ) -> tuple[bool, dict]:
         """
         Проверяет, разрешен ли запрос
         
@@ -95,7 +95,7 @@ async def rate_limit_middleware(
     
     # Получаем ключ для Rate Limiting
     client_ip = request.client.host
-    user_id = getattr(request.state, 'user_id', None)
+    user_id = getattr(request.state, "user_id", None)
     
     # Приоритет: user_id > IP адрес
     if user_id:
@@ -163,7 +163,7 @@ def rate_limit(
         async def wrapper(request: Request, *args, **kwargs):
             # Получаем ключ для Rate Limiting
             client_ip = request.client.host
-            user_id = getattr(request.state, 'user_id', None)
+            user_id = getattr(request.state, "user_id", None)
             
             if user_id:
                 rate_limit_key = f"{key_prefix}:user:{user_id}"
@@ -233,7 +233,7 @@ RATE_LIMIT_CONFIGS = {
     }
 }
 
-async def get_rate_limit_config(endpoint_path: str) -> Dict:
+async def get_rate_limit_config(endpoint_path: str) -> dict:
     """
     Получает конфигурацию Rate Limiting для endpoint
     
@@ -254,8 +254,8 @@ async def get_rate_limit_config(endpoint_path: str) -> Dict:
     else:
         return RATE_LIMIT_CONFIGS["default"]
 
-async def setup_rate_limiting(app):
-    """Настройка Rate Limiting для приложения"""
+def setup_rate_limiting_middleware(app):
+    """Настройка Rate Limiting middleware для приложения (должно быть вызвано до запуска)"""
     
     @app.middleware("http")
     async def rate_limit_middleware_wrapper(request: Request, call_next):
@@ -269,6 +269,13 @@ async def setup_rate_limiting(app):
             window_seconds=config["window_seconds"],
             key_prefix=f"rate_limit:{config['description'].lower().replace(' ', '_')}"
         )
+
+async def setup_rate_limiting(app):
+    """Настройка Rate Limiting для приложения (устаревшая функция)"""
+    
+    # Эта функция больше не нужна, так как middleware настраивается заранее
+    # Оставляем для обратной совместимости
+    pass
     
     # Добавляем endpoint для просмотра статистики Rate Limiting
     @app.get("/api/rate-limit/stats")

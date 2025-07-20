@@ -1,8 +1,7 @@
 from collections import defaultdict
-import time
+from dataclasses import dataclass
 from enum import Enum
-from typing import List, Optional
-from dataclasses import dataclass, field
+
 from pydantic import BaseModel
 
 # Конфигурация безопасности
@@ -33,14 +32,14 @@ class FirewallRule:
     id: int
     name: str
     protocol: str  # any, tcp, udp, icmp, etc.
-    port: Optional[str]  # может быть диапазон или None
+    port: str | None  # может быть диапазон или None
     direction: str  # inbound, outbound, any
     action: str  # allow, deny
     enabled: bool
-    comment: Optional[str] = ""
+    comment: str | None = ""
 
 # Временное хранилище правил (в будущем будет БД)
-firewall_rules: List[FirewallRule] = [
+firewall_rules: list[FirewallRule] = [
     FirewallRule(id=1, name="DHCP", protocol="udp", port="67-68", direction="any", action="allow", enabled=True, comment="DHCP service"),
     FirewallRule(id=2, name="DNS", protocol="udp", port="53", direction="outbound", action="allow", enabled=False, comment="DNS queries")
 ]
@@ -63,8 +62,8 @@ class FirewallDeviceModel(BaseModel):
     type: str
     username: str
     password: str
-    status: Optional[str] = "Неизвестно"
-    last_poll: Optional[str] = "-"
+    status: str | None = "Неизвестно"
+    last_poll: str | None = "-"
 
 def get_role_name(role: UserRole) -> str:
     """Возвращает читаемое название роли"""

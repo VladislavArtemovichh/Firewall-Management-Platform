@@ -1,9 +1,9 @@
-from fastapi import APIRouter
-from fastapi.responses import JSONResponse
-import psutil
 import datetime
 import socket
-import uuid
+
+import psutil
+from fastapi import APIRouter
+from fastapi.responses import JSONResponse
 
 router = APIRouter()
 
@@ -31,7 +31,7 @@ async def get_connections():
                 # Получаем время запуска процесса (секунды с эпохи)
                 proc_create_time = proc.create_time()
                 # Переводим в человекочитаемый формат
-                create_time = datetime.datetime.fromtimestamp(proc_create_time).strftime('%d.%m.%Y %H:%M:%S')
+                create_time = datetime.datetime.fromtimestamp(proc_create_time).strftime("%d.%m.%Y %H:%M:%S")
         except Exception:
             proc_name = "Неизвестно"
             create_time = ""
@@ -56,10 +56,10 @@ async def get_adapters():
     net_if_stats = psutil.net_if_stats()
     net_io_counters = psutil.net_io_counters(pernic=True)
     for name, addrs in net_if_addrs.items():
-        mac = ''
-        ip = ''
+        mac = ""
+        ip = ""
         for addr in addrs:
-            if addr.family == psutil.AF_LINK or (hasattr(socket, 'AF_PACKET') and addr.family == socket.AF_PACKET):
+            if addr.family == psutil.AF_LINK or (hasattr(socket, "AF_PACKET") and addr.family == socket.AF_PACKET):
                 mac = addr.address
             elif addr.family == socket.AF_INET:
                 ip = addr.address
@@ -67,34 +67,34 @@ async def get_adapters():
         io = net_io_counters.get(name)
         isup = stats.isup if stats else False
         adapter = {
-            'name': name,
-            'mac': mac,
-            'ip': ip,
-            'speed': stats.speed if stats else None,
-            'isup': isup,
-            'in_packets': io.packets_recv if io else None,
-            'out_packets': io.packets_sent if io else None,
-            'in_errors': io.errin if io else None,
-            'out_errors': io.errout if io else None
+            "name": name,
+            "mac": mac,
+            "ip": ip,
+            "speed": stats.speed if stats else None,
+            "isup": isup,
+            "in_packets": io.packets_recv if io else None,
+            "out_packets": io.packets_sent if io else None,
+            "in_errors": io.errin if io else None,
+            "out_errors": io.errout if io else None
         }
         if isup:
             adapters_active.append(adapter)
         else:
             adapters_inactive.append(adapter)
-    return {'active': adapters_active, 'inactive': adapters_inactive}
+    return {"active": adapters_active, "inactive": adapters_inactive}
 
 @router.get("/api/bandwidth")
 async def get_bandwidth():
-    import psutil
     import collections
     import subprocess
-    import os
+
+    import psutil
     
     proc_stats = collections.defaultdict(lambda: {"connections": 0, "bytes_recv": 0, "bytes_sent": 0})
     
     # Попытка получить трафик из /proc/net/nf_conntrack (более точные данные)
     try:
-        with open('/proc/net/nf_conntrack', 'r') as f:
+        with open("/proc/net/nf_conntrack") as f:
             for line in f:
                 if not line.strip():
                     continue
@@ -119,20 +119,20 @@ async def get_bandwidth():
                     bytes_out = 0
                     
                     for i, part in enumerate(parts):
-                        if part == 'src=':
+                        if part == "src=":
                             src_addr = parts[i+1]
-                        elif part == 'dst=':
+                        elif part == "dst=":
                             dst_addr = parts[i+1]
-                        elif part == 'sport=':
+                        elif part == "sport=":
                             src_port = parts[i+1]
-                        elif part == 'dport=':
+                        elif part == "dport=":
                             dst_port = parts[i+1]
-                        elif part == 'packets=':
+                        elif part == "packets=":
                             if packets_in == 0:
                                 packets_in = int(parts[i+1])
                             else:
                                 packets_out = int(parts[i+1])
-                        elif part == 'bytes=':
+                        elif part == "bytes=":
                             if bytes_in == 0:
                                 bytes_in = int(parts[i+1])
                             else:
@@ -142,7 +142,7 @@ async def get_bandwidth():
                         # Пытаемся найти процесс по адресу и порту
                         process_name = "unknown"
                         try:
-                            for conn in psutil.net_connections(kind='inet'):
+                            for conn in psutil.net_connections(kind="inet"):
                                 if (conn.laddr and conn.laddr.ip == src_addr and 
                                     str(conn.laddr.port) == src_port):
                                     if conn.pid:
@@ -159,18 +159,18 @@ async def get_bandwidth():
                         proc_stats[process_name]["bytes_recv"] += bytes_in
                         proc_stats[process_name]["bytes_sent"] += bytes_out
                         
-                except Exception as parse_error:
+                except Exception:
                     continue
                     
-    except Exception as nf_error:
+    except Exception:
         # Fallback к старому методу если nf_conntrack недоступен
         # Попытка получить трафик из /proc/net/dev (общий трафик по интерфейсам)
         total_bytes_recv = 0
         total_bytes_sent = 0
         try:
-            with open('/proc/net/dev', 'r') as f:
+            with open("/proc/net/dev") as f:
                 for line in f:
-                    if ':' in line and not line.startswith('Inter-'):
+                    if ":" in line and not line.startswith("Inter-"):
                         parts = line.split()
                         if len(parts) >= 10:
                             # bytes received и bytes transmitted
@@ -182,15 +182,15 @@ async def get_bandwidth():
         # Попытка получить трафик по процессам через ss (если доступен)
         process_traffic = {}
         try:
-            result = subprocess.run(['ss', '-tunp'], capture_output=True, text=True, timeout=5)
+            result = subprocess.run(["ss", "-tunp"], capture_output=True, text=True, timeout=5)
             if result.returncode == 0:
                 for line in result.stdout.splitlines():
-                    if 'users:' in line:
+                    if "users:" in line:
                         # Парсим строку ss для получения PID и трафика
                         parts = line.split()
                         for part in parts:
-                            if 'pid=' in part:
-                                pid = part.split('=')[1].split(',')[0]
+                            if "pid=" in part:
+                                pid = part.split("=")[1].split(",")[0]
                                 try:
                                     proc = psutil.Process(int(pid))
                                     proc_name = proc.name()
@@ -205,11 +205,11 @@ async def get_bandwidth():
             pass
         
         # Основной цикл по процессам
-        for proc in psutil.process_iter(['pid', 'name']):
+        for proc in psutil.process_iter(["pid", "name"]):
             try:
-                name = proc.info['name'] or f"pid_{proc.info['pid']}"
+                name = proc.info["name"] or f"pid_{proc.info['pid']}"
                 # Считаем только процессы с сетевыми соединениями
-                conns = proc.connections(kind='inet')
+                conns = proc.connections(kind="inet")
                 if not conns:
                     continue
                 
@@ -246,9 +246,10 @@ async def get_bandwidth():
 @router.get("/api/nf_conntrack")
 async def get_nf_conntrack():
     """API для получения данных из /proc/net/nf_conntrack с группировкой по процессам"""
-    import psutil
     import collections
     import subprocess
+
+    import psutil
     
     proc_stats = collections.defaultdict(lambda: {
         "connections": 0, 
@@ -260,7 +261,7 @@ async def get_nf_conntrack():
     
     # Попытка 1: Чтение /proc/net/nf_conntrack (требует root)
     try:
-        with open('/proc/net/nf_conntrack', 'r') as f:
+        with open("/proc/net/nf_conntrack") as f:
             for line in f:
                 if not line.strip():
                     continue
@@ -285,20 +286,20 @@ async def get_nf_conntrack():
                     bytes_out = 0
                     
                     for i, part in enumerate(parts):
-                        if part == 'src=':
+                        if part == "src=":
                             src_addr = parts[i+1]
-                        elif part == 'dst=':
+                        elif part == "dst=":
                             dst_addr = parts[i+1]
-                        elif part == 'sport=':
+                        elif part == "sport=":
                             src_port = parts[i+1]
-                        elif part == 'dport=':
+                        elif part == "dport=":
                             dst_port = parts[i+1]
-                        elif part == 'packets=':
+                        elif part == "packets=":
                             if packets_in == 0:
                                 packets_in = int(parts[i+1])
                             else:
                                 packets_out = int(parts[i+1])
-                        elif part == 'bytes=':
+                        elif part == "bytes=":
                             if bytes_in == 0:
                                 bytes_in = int(parts[i+1])
                             else:
@@ -308,7 +309,7 @@ async def get_nf_conntrack():
                         # Пытаемся найти процесс по адресу и порту
                         process_name = "unknown"
                         try:
-                            for conn in psutil.net_connections(kind='inet'):
+                            for conn in psutil.net_connections(kind="inet"):
                                 if (conn.laddr and conn.laddr.ip == src_addr and 
                                     str(conn.laddr.port) == src_port):
                                     if conn.pid:
@@ -333,13 +334,13 @@ async def get_nf_conntrack():
                         proc_stats[process_name]["protocols"].add(protocol.upper())
                         proc_stats[process_name]["remote_ips"].add(dst_addr)
                         
-                except Exception as parse_error:
+                except Exception:
                     continue
     
     except PermissionError:
         # Попытка 2: Используем sudo для чтения nf_conntrack
         try:
-            result = subprocess.run(['sudo', 'cat', '/proc/net/nf_conntrack'], 
+            result = subprocess.run(["sudo", "cat", "/proc/net/nf_conntrack"], 
                                   capture_output=True, text=True, timeout=10)
             if result.returncode == 0:
                 for line in result.stdout.splitlines():
@@ -366,20 +367,20 @@ async def get_nf_conntrack():
                         bytes_out = 0
                         
                         for i, part in enumerate(parts):
-                            if part == 'src=':
+                            if part == "src=":
                                 src_addr = parts[i+1]
-                            elif part == 'dst=':
+                            elif part == "dst=":
                                 dst_addr = parts[i+1]
-                            elif part == 'sport=':
+                            elif part == "sport=":
                                 src_port = parts[i+1]
-                            elif part == 'dport=':
+                            elif part == "dport=":
                                 dst_port = parts[i+1]
-                            elif part == 'packets=':
+                            elif part == "packets=":
                                 if packets_in == 0:
                                     packets_in = int(parts[i+1])
                                 else:
                                     packets_out = int(parts[i+1])
-                            elif part == 'bytes=':
+                            elif part == "bytes=":
                                 if bytes_in == 0:
                                     bytes_in = int(parts[i+1])
                                 else:
@@ -389,7 +390,7 @@ async def get_nf_conntrack():
                             # Пытаемся найти процесс по адресу и порту
                             process_name = "unknown"
                             try:
-                                for conn in psutil.net_connections(kind='inet'):
+                                for conn in psutil.net_connections(kind="inet"):
                                     if (conn.laddr and conn.laddr.ip == src_addr and 
                                         str(conn.laddr.port) == src_port):
                                         if conn.pid:
@@ -414,21 +415,21 @@ async def get_nf_conntrack():
                             proc_stats[process_name]["protocols"].add(protocol.upper())
                             proc_stats[process_name]["remote_ips"].add(dst_addr)
                             
-                    except Exception as parse_error:
+                    except Exception:
                         continue
             else:
                 raise Exception("sudo cat /proc/net/nf_conntrack failed")
                 
-        except Exception as sudo_error:
+        except Exception:
             # Попытка 3: Fallback к обычному методу через psutil и ss
             try:
                 # Получаем общий трафик из /proc/net/dev
                 total_bytes_recv = 0
                 total_bytes_sent = 0
                 try:
-                    with open('/proc/net/dev', 'r') as f:
+                    with open("/proc/net/dev") as f:
                         for line in f:
-                            if ':' in line and not line.startswith('Inter-'):
+                            if ":" in line and not line.startswith("Inter-"):
                                 parts = line.split()
                                 if len(parts) >= 10:
                                     total_bytes_recv += int(parts[1])
@@ -444,18 +445,18 @@ async def get_nf_conntrack():
                 })
                 
                 try:
-                    result = subprocess.run(['ss', '-tunp'], capture_output=True, text=True, timeout=5)
+                    result = subprocess.run(["ss", "-tunp"], capture_output=True, text=True, timeout=5)
                     if result.returncode == 0:
                         for line in result.stdout.splitlines():
-                            if 'users:' in line:
+                            if "users:" in line:
                                 parts = line.split()
                                 protocol = parts[0] if parts else "unknown"
                                 
                                 # Ищем PID
                                 pid = None
                                 for part in parts:
-                                    if 'pid=' in part:
-                                        pid = part.split('=')[1].split(',')[0]
+                                    if "pid=" in part:
+                                        pid = part.split("=")[1].split(",")[0]
                                         break
                                 
                                 if pid:
@@ -467,9 +468,9 @@ async def get_nf_conntrack():
                                         
                                         # Ищем remote IP
                                         for part in parts:
-                                            if ':' in part and not part.startswith('127.') and not part.startswith('::1'):
-                                                remote_ip = part.split(':')[0]
-                                                if remote_ip and remote_ip != '*':
+                                            if ":" in part and not part.startswith("127.") and not part.startswith("::1"):
+                                                remote_ip = part.split(":")[0]
+                                                if remote_ip and remote_ip != "*":
                                                     process_connections[proc_name]["remote_ips"].add(remote_ip)
                                                 break
                                     except:
@@ -499,11 +500,11 @@ async def get_nf_conntrack():
                         proc_stats[proc_name]["bytes_recv"] = int(total_bytes_recv * ratio)
                         proc_stats[proc_name]["bytes_sent"] = int(total_bytes_sent * ratio)
                 
-            except Exception as fallback_error:
-                return {"error": f"Не удалось получить данные о трафике. Попробуйте запустить с правами root или установить sudo."}
+            except Exception:
+                return {"error": "Не удалось получить данные о трафике. Попробуйте запустить с правами root или установить sudo."}
     
     except Exception as e:
-        return {"error": f"Ошибка чтения /proc/net/nf_conntrack: {str(e)}"}
+        return {"error": f"Ошибка чтения /proc/net/nf_conntrack: {e!s}"}
     
     # Преобразуем в список для фронта
     result = []
