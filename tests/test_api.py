@@ -93,6 +93,10 @@ class TestLoginAPI:
 class TestDashboardAPI:
     """Тесты для API дашборда"""
     
+    def setup_method(self):
+        """Очищаем куки перед каждым тестом"""
+        client.cookies.clear()
+    
     def test_dashboard_without_auth(self):
         """Тест доступа к дашборду без аутентификации"""
         response = client.get("/dashboard", follow_redirects=False)
@@ -109,19 +113,20 @@ class TestDashboardAPI:
             "password": "admin123"
         }, follow_redirects=False)
         
-        # Получаем куки
-        cookies = login_response.cookies
+        # Устанавливаем куки на клиенте
+        client.cookies.update(login_response.cookies)
         
-        # Запрашиваем дашборд с куки
-        response = client.get("/dashboard", cookies=cookies)
+        # Запрашиваем дашборд
+        response = client.get("/dashboard")
         assert response.status_code == 200
         # Проверяем, что это HTML страница
         assert "html" in response.text.lower()
     
     def test_dashboard_with_invalid_user(self):
         """Тест доступа к дашборду с несуществующим пользователем"""
-        cookies = {"username": "nonexistent"}
-        response = client.get("/dashboard", cookies=cookies, follow_redirects=False)
+        # Устанавливаем куки на клиенте
+        client.cookies.set("username", "nonexistent")
+        response = client.get("/dashboard", follow_redirects=False)
         assert response.status_code == 303
         assert response.headers["location"] == "/"
 
@@ -146,6 +151,10 @@ class TestLogoutAPI:
 class TestSettingsAPI:
     """Тесты для API настроек"""
     
+    def setup_method(self):
+        """Очищаем куки перед каждым тестом"""
+        client.cookies.clear()
+    
     def test_settings_without_admin_role(self):
         """Тест доступа к настройкам без роли администратора"""
         # Входим как обычный пользователь
@@ -154,10 +163,11 @@ class TestSettingsAPI:
             "password": "dev123"
         }, follow_redirects=False)
         
-        cookies = login_response.cookies
+        # Устанавливаем куки на клиенте
+        client.cookies.update(login_response.cookies)
         
         # Пытаемся получить доступ к настройкам
-        response = client.get("/settings", cookies=cookies, follow_redirects=False)
+        response = client.get("/settings", follow_redirects=False)
         assert response.status_code == 303
         assert response.headers["location"] == "/dashboard"
     
@@ -169,10 +179,11 @@ class TestSettingsAPI:
             "password": "admin123"
         }, follow_redirects=False)
         
-        cookies = login_response.cookies
+        # Устанавливаем куки на клиенте
+        client.cookies.update(login_response.cookies)
         
         # Получаем доступ к настройкам
-        response = client.get("/settings", cookies=cookies)
+        response = client.get("/settings")
         assert response.status_code == 200
         # Проверяем, что это HTML страница
         assert "html" in response.text.lower()
@@ -274,8 +285,21 @@ class TestRulesAPI:
 class TestMetricsAPI:
     """Тесты для API метрик"""
     
+    def setup_method(self):
+        """Очищаем куки перед каждым тестом"""
+        client.cookies.clear()
+    
     def test_get_metrics_summary(self):
         """Тест получения сводки метрик"""
+        # Входим как администратор для доступа к метрикам
+        login_response = client.post("/login", data={
+            "username": "admin",
+            "password": "admin123"
+        }, follow_redirects=False)
+        
+        # Устанавливаем куки на клиенте
+        client.cookies.update(login_response.cookies)
+        
         response = client.get("/api/metrics/summary")
         assert response.status_code == 200
         
@@ -288,6 +312,15 @@ class TestMetricsAPI:
     
     def test_get_metrics_charts(self):
         """Тест получения данных для графиков"""
+        # Входим как администратор для доступа к метрикам
+        login_response = client.post("/login", data={
+            "username": "admin",
+            "password": "admin123"
+        }, follow_redirects=False)
+        
+        # Устанавливаем куки на клиенте
+        client.cookies.update(login_response.cookies)
+        
         response = client.get("/api/metrics/charts")
         assert response.status_code == 200
         
@@ -381,6 +414,10 @@ class TestErrorHandling:
 class TestAuthenticationFlow:
     """Тесты полного цикла аутентификации"""
     
+    def setup_method(self):
+        """Очищаем куки перед каждым тестом"""
+        client.cookies.clear()
+    
     def test_complete_auth_flow(self, clear_login_attempts):
         """Тест полного цикла аутентификации"""
         # 1. Получаем страницу входа
@@ -396,19 +433,19 @@ class TestAuthenticationFlow:
         }, follow_redirects=False)
         
         assert login_response.status_code == 303
-        cookies = login_response.cookies
         
-        # 3. Получаем доступ к дашборду
-        dashboard_response = client.get("/dashboard", cookies=cookies)
+        # 3. Устанавливаем куки на клиенте и получаем доступ к дашборду
+        client.cookies.update(login_response.cookies)
+        dashboard_response = client.get("/dashboard")
         assert dashboard_response.status_code == 200
         
         # 4. Выходим из системы
-        logout_response = client.get("/logout", cookies=cookies, follow_redirects=False)
+        logout_response = client.get("/logout", follow_redirects=False)
         assert logout_response.status_code == 303
         assert logout_response.headers["location"] == "/"
         
         # 5. Проверяем, что больше нет доступа к дашборду
-        final_response = client.get("/dashboard", cookies=cookies, follow_redirects=False)
+        final_response = client.get("/dashboard", follow_redirects=False)
         # После выхода может быть редирект или доступ к странице входа
         assert final_response.status_code in [303, 302, 200]
         if final_response.status_code in [303, 302]:
