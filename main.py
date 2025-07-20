@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi import Response
 import db_config
-from app.database import startup_event
+from app.database import startup_event, router as database_router
 from app.middleware import setup_middleware
 from app.routes import setup_routes
 from app.metrics import start_metrics_collection
@@ -22,6 +22,7 @@ setup_routes(app)
 app.include_router(connections_router)
 app.include_router(network_monitor_router)
 app.include_router(firewall_devices_router)
+app.include_router(database_router)
 
 # Заглушка для favicon.ico, чтобы не было 404
 @app.get("/favicon.ico")

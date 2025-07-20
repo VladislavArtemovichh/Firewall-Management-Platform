@@ -295,6 +295,25 @@
                 </div>
             </div>
 
+            <!-- Сетевые интерфейсы -->
+            <div id="network-interfaces-block" style="margin-bottom: 30px; display:none;">
+                <h3 style="color:#1a3a5f; margin-bottom: 10px;">Сетевые интерфейсы сервера</h3>
+                <table style="width: 100%; background: #fff; border-radius: 8px; box-shadow: 0 2px 8px #0001;">
+                    <thead>
+                        <tr>
+                            <th style="padding: 8px;">Интерфейс</th>
+                            <th style="padding: 8px;">IP</th>
+                            <th style="padding: 8px;">MAC</th>
+                            <th style="padding: 8px;">RX</th>
+                            <th style="padding: 8px;">TX</th>
+                        </tr>
+                    </thead>
+                    <tbody id="network-interfaces-table">
+                        <tr><td colspan="5" style="text-align:center; color:#888;">Нет данных</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
             <!-- Детализация ошибок -->
             <div id="errors-detail-block" style="margin-bottom: 30px; display:none;">
                 <h3 style="color:#e53e3e; margin-bottom: 10px;">Детализация ошибок (топ-5)</h3>
@@ -542,6 +561,25 @@
             } else {
                 errorsBlock.style.display = '';
                 errorsTable.innerHTML = `<tr><td colspan='2' style='text-align:center; color:#888;'>Нет ошибок</td></tr>`;
+            }
+
+            // --- сетевые интерфейсы ---
+            const netBlock = document.getElementById('network-interfaces-block');
+            const netTable = document.getElementById('network-interfaces-table');
+            if (data.network_interfaces && data.network_interfaces.length > 0) {
+                netBlock.style.display = '';
+                netTable.innerHTML = data.network_interfaces.map(iface => `
+                    <tr>
+                        <td style='padding:8px;'>${iface.name || iface.interface || ''}</td>
+                        <td style='padding:8px;'>${iface.ip || ''}</td>
+                        <td style='padding:8px;'>${iface.mac || ''}</td>
+                        <td style='padding:8px;'>${iface.rx_bytes || iface.in_packets || ''}</td>
+                        <td style='padding:8px;'>${iface.tx_bytes || iface.out_packets || ''}</td>
+                    </tr>
+                `).join('');
+            } else {
+                netBlock.style.display = '';
+                netTable.innerHTML = `<tr><td colspan='5' style='text-align:center; color:#888;'>Нет данных</td></tr>`;
             }
         }
         

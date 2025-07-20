@@ -22,13 +22,47 @@ from .database import (
     cleanup_anomalous_sessions,
     cleanup_user_sessions,
     get_all_firewall_rules, add_firewall_rule, update_firewall_rule, delete_firewall_rule, toggle_firewall_rule,
-    add_audit_log, get_audit_log, create_firewall_rules_table
+    add_audit_log, get_audit_log, create_firewall_rules_table, get_all_network_interfaces_info
 )
 from .metrics import metrics_collector, start_metrics_collection
 import datetime
 import re
 import psutil
 import time
+import logging
+import sys
+
+# Add ColorFormatter for logging (copied from database.py)
+class ColorFormatter(logging.Formatter):
+    COLORS = {
+        'INFO': '\033[92m',      # Зеленый
+        'ERROR': '\033[91m',     # Красный
+        'FIREWALL-LOG': '\033[94m', # Синий
+        'NETMIKO': '\033[95m',   # Фиолетовый
+        'PARAMIKO': '\033[93m',  # Желтый
+        'RESET': '\033[0m',
+    }
+    def format(self, record):
+        msg = super().format(record)
+        lower_msg = msg.lower()
+        if '[FIREWALL-LOG]' in msg:
+            color = self.COLORS['FIREWALL-LOG']
+        elif 'netmiko' in lower_msg:
+            color = self.COLORS['NETMIKO']
+        elif 'paramiko' in lower_msg:
+            color = self.COLORS['PARAMIKO']
+        elif record.levelno == logging.INFO:
+            color = self.COLORS['INFO']
+        elif record.levelno == logging.ERROR:
+            color = self.COLORS['ERROR']
+        else:
+            color = ''
+        reset = self.COLORS['RESET']
+        return f"{color}{msg}{reset}"
+
+handler = logging.StreamHandler(sys.stdout)
+handler.setFormatter(ColorFormatter('%(asctime)s %(levelname)s %(message)s'))
+logging.basicConfig(level=logging.INFO, handlers=[handler])
 
 templates = Jinja2Templates(directory="templates")
 audit_log = []
@@ -38,6 +72,7 @@ def setup_routes(app: FastAPI):
     
     @app.post("/login")
     async def login(request: Request, username: str = Form(...), password: str = Form(...)):
+        logging.info(f"[ROUTE] login called with username={username}")
         """Обработчик входа пользователя"""
         # Проверяем блокировку
         lockout_response = check_login_attempts(username, request)
@@ -80,6 +115,7 @@ def setup_routes(app: FastAPI):
 
     @app.get("/")
     def get_login_page(request: Request):
+        logging.info(f"[ROUTE] get_login_page called")
         """Главная страница с формой входа"""
         # Получаем ошибку из куки
         error = request.cookies.get("error")
@@ -99,6 +135,7 @@ def setup_routes(app: FastAPI):
 
     @app.get("/dashboard")
     def get_dashboard(request: Request):
+        logging.info(f"[ROUTE] get_dashboard called")
         """Страница дашборда"""
         username = request.cookies.get("username")
         if not username or username not in users:
@@ -108,6 +145,7 @@ def setup_routes(app: FastAPI):
 
     @app.get("/logout")
     async def logout(request: Request):
+        logging.info(f"[ROUTE] logout called")
         """Обработчик выхода пользователя"""
         session_token = request.cookies.get("session_token")
         if session_token:
@@ -123,6 +161,7 @@ def setup_routes(app: FastAPI):
 
     @app.get("/settings")
     def get_settings(request: Request):
+        logging.info(f"[ROUTE] get_settings called")
         """Страница управления пользователями"""
         username = request.cookies.get("username")
         user_role = None
@@ -134,6 +173,7 @@ def setup_routes(app: FastAPI):
 
     @app.get("/event-log")
     async def get_event_log(request: Request):
+        logging.info(f"[ROUTE] get_event_log called")
         """Страница журнала событий"""
         username = request.cookies.get("username")
         user_role = None
@@ -189,6 +229,7 @@ def setup_routes(app: FastAPI):
 
     @app.get("/api/users")
     async def get_users():
+        logging.info(f"[ROUTE] get_users called")
         """API для получения списка пользователей"""
         try:
             conn = await asyncpg.connect(
@@ -228,6 +269,7 @@ def setup_routes(app: FastAPI):
 
     @app.post("/api/users")
     async def add_user(request: Request):
+        logging.info(f"[ROUTE] add_user called")
         """API для добавления нового пользователя"""
         form_data = await request.form()
         login = str(form_data.get("login", "")).strip()
@@ -274,6 +316,7 @@ def setup_routes(app: FastAPI):
 
     @app.put("/api/users/{user_id}")
     async def update_user_role(user_id: int, request: Request):
+        logging.info(f"[ROUTE] update_user_role called with user_id={user_id}")
         """API для изменения роли пользователя"""
         form_data = await request.form()
         role = str(form_data.get("role", ""))
@@ -308,6 +351,7 @@ def setup_routes(app: FastAPI):
 
     @app.delete("/api/users/{user_id}")
     async def delete_user(user_id: int):
+        logging.info(f"[ROUTE] delete_user called with user_id={user_id}")
         """API для удаления пользователя"""
         try:
             conn = await asyncpg.connect(
@@ -336,6 +380,7 @@ def setup_routes(app: FastAPI):
 
     @app.get("/api/online-users")
     async def get_online_users_api():
+        logging.info(f"[ROUTE] get_online_users_api called")
         """API для получения списка пользователей онлайн"""
         try:
             online_users = await get_online_users()
@@ -348,6 +393,7 @@ def setup_routes(app: FastAPI):
 
     @app.get("/api/user-sessions/{user_id}")
     async def get_user_sessions_api(user_id: int):
+        logging.info(f"[ROUTE] get_user_sessions_api called with user_id={user_id}")
         """API для получения сессий конкретного пользователя"""
         try:
             sessions = await get_user_sessions(user_id)
@@ -357,6 +403,7 @@ def setup_routes(app: FastAPI):
 
     @app.post("/api/user-login")
     async def user_login_api(request: Request):
+        logging.info(f"[ROUTE] user_login_api called")
         """API для записи входа пользователя в систему"""
         try:
             form_data = await request.form()
@@ -372,6 +419,7 @@ def setup_routes(app: FastAPI):
 
     @app.post("/api/user-activity")
     async def update_user_activity_api(request: Request):
+        logging.info(f"[ROUTE] update_user_activity_api called")
         """API для обновления активности пользователя"""
         try:
             form_data = await request.form()
@@ -384,6 +432,7 @@ def setup_routes(app: FastAPI):
 
     @app.post("/api/user-logout")
     async def user_logout_api(request: Request):
+        logging.info(f"[ROUTE] user_logout_api called")
         """API для записи выхода пользователя из системы"""
         try:
             form_data = await request.form()
@@ -396,6 +445,7 @@ def setup_routes(app: FastAPI):
 
     @app.post("/api/cleanup-sessions")
     async def cleanup_sessions_api():
+        logging.info(f"[ROUTE] cleanup_sessions_api called")
         """API для очистки аномальных сессий"""
         try:
             await cleanup_anomalous_sessions()
@@ -405,6 +455,7 @@ def setup_routes(app: FastAPI):
 
     @app.post("/api/cleanup-user-sessions/{user_id}")
     async def cleanup_user_sessions_api(user_id: int):
+        logging.info(f"[ROUTE] cleanup_user_sessions_api called with user_id={user_id}")
         """API для очистки сессий конкретного пользователя"""
         try:
             deleted_count = await cleanup_user_sessions(user_id)
@@ -418,14 +469,17 @@ def setup_routes(app: FastAPI):
     # --- API для управления правилами ---
     @app.on_event("startup")
     async def startup_event():
+        logging.info(f"[ROUTE] startup_event called")
         await create_firewall_rules_table()
 
     @app.get("/api/rules")
     async def get_rules():
+        logging.info(f"[ROUTE] get_rules called")
         return await get_all_firewall_rules()
 
     @app.post("/api/rules")
     async def add_rule(request: Request):
+        logging.info(f"[ROUTE] add_rule called")
         try:
             form = await request.form()
             data = {
@@ -464,6 +518,7 @@ def setup_routes(app: FastAPI):
 
     @app.put("/api/rules/{rule_id}")
     async def update_rule(rule_id: int, request: Request):
+        logging.info(f"[ROUTE] update_rule called with rule_id={rule_id}")
         form = await request.form()
         data = {
             'name': str(form.get("name", "")).strip(),
@@ -495,6 +550,7 @@ def setup_routes(app: FastAPI):
 
     @app.delete("/api/rules/{rule_id}")
     async def delete_rule(rule_id: int, request: Request):
+        logging.info(f"[ROUTE] delete_rule called with rule_id={rule_id}")
         rules = await get_all_firewall_rules()
         rule = next((r for r in rules if r['id'] == rule_id), None)
         await delete_firewall_rule(rule_id)
@@ -506,6 +562,7 @@ def setup_routes(app: FastAPI):
 
     @app.post("/api/rules/{rule_id}/toggle")
     async def toggle_rule(rule_id: int, request: Request):
+        logging.info(f"[ROUTE] toggle_rule called with rule_id={rule_id}")
         rule = await toggle_firewall_rule(rule_id)
         user = request.cookies.get('username', 'system')
         user_role = users.get(user, {}).get("role", "unknown").value if user in users else "unknown"
@@ -514,10 +571,12 @@ def setup_routes(app: FastAPI):
 
     @app.get("/api/rules/audit")
     async def get_rules_audit():
+        logging.info(f"[ROUTE] get_rules_audit called")
         return await get_audit_log()
 
     @app.get("/rules")
     def get_rules_page(request: Request):
+        logging.info(f"[ROUTE] get_rules_page called")
         username = request.cookies.get("username")
         if not username or username not in users:
             return RedirectResponse(url="/", status_code=303)
@@ -526,6 +585,7 @@ def setup_routes(app: FastAPI):
 
     @app.get("/firewalls")
     def get_firewalls(request: Request):
+        logging.info(f"[ROUTE] get_firewalls called")
         username = request.cookies.get("username")
         if not username or username not in users:
             return RedirectResponse(url="/", status_code=303)
@@ -534,12 +594,14 @@ def setup_routes(app: FastAPI):
 
     @app.exception_handler(429)
     async def too_many_requests_handler(request: Request, exc: HTTPException):
+        logging.info(f"[ROUTE] too_many_requests_handler called")
         """Обработчик ошибки 429 (Too Many Requests)"""
         return RedirectResponse(url="/", status_code=303)
 
     # --- Маршруты для метрик (только для админов) ---
     @app.get("/metrics")
     def get_metrics_page(request: Request):
+        logging.info(f"[ROUTE] get_metrics_page called")
         """Страница метрик (только для администраторов)"""
         username = request.cookies.get("username")
         user_role = None
@@ -551,6 +613,7 @@ def setup_routes(app: FastAPI):
 
     @app.get("/api/metrics/summary")
     async def get_metrics_summary(request: Request):
+        logging.info(f"[ROUTE] get_metrics_summary called")
         """API для получения сводки метрик"""
         username = request.cookies.get("username")
         user_role = None
@@ -584,6 +647,14 @@ def setup_routes(app: FastAPI):
             
             # Получаем сводку
             summary = metrics_collector.get_metrics_summary()
+
+            # Добавляем информацию о сетевых интерфейсах
+            try:
+                interfaces_info = get_all_network_interfaces_info()
+            except Exception as e:
+                interfaces_info = []
+            summary["network_interfaces"] = interfaces_info
+
             return JSONResponse(content=summary)
             
         except Exception as e:
@@ -594,6 +665,7 @@ def setup_routes(app: FastAPI):
 
     @app.get("/api/metrics/charts")
     async def get_metrics_charts(request: Request):
+        logging.info(f"[ROUTE] get_metrics_charts called")
         """API для получения данных для графиков"""
         username = request.cookies.get("username")
         user_role = None
@@ -611,6 +683,7 @@ def setup_routes(app: FastAPI):
 
     @app.post("/api/metrics/record-request")
     async def record_request_metrics(request: Request):
+        logging.info(f"[ROUTE] record_request_metrics called")
         """API для записи метрик запроса"""
         try:
             form_data = await request.form()
@@ -625,6 +698,7 @@ def setup_routes(app: FastAPI):
 
     @app.post("/api/metrics/record-security")
     async def record_security_metrics(request: Request):
+        logging.info(f"[ROUTE] record_security_metrics called")
         """API для записи метрик безопасности"""
         try:
             form_data = await request.form()
@@ -650,6 +724,7 @@ def setup_routes(app: FastAPI):
 
     @app.get("/api/adapters")
     async def get_adapters():
+        logging.info(f"[ROUTE] get_adapters called")
         stats = psutil.net_if_stats()
         addrs = psutil.net_if_addrs()
         io_counters = psutil.net_io_counters(pernic=True)
@@ -713,3 +788,11 @@ def setup_routes(app: FastAPI):
                 inactive.append(adapter_info)
 
         return {"active": active, "inactive": inactive}
+
+    @app.get("/api/server-interfaces")
+    async def get_server_interfaces():
+        logging.info(f"[ROUTE] get_server_interfaces called")
+        """API для получения параметров всех сетевых интерфейсов сервера"""
+        interfaces = get_all_network_interfaces_info()
+        print(interfaces)
+        return JSONResponse(content=interfaces)
