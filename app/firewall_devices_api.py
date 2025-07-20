@@ -167,7 +167,7 @@ async def api_remove_dns_block(device_id: int = Query(...), request_data: dict =
             
             # Удаляем строку с доменом из dnsmasq.conf
             # Экранируем точку в домене для sed
-            escaped_domain = domain.replace('.', '\.')
+            escaped_domain = domain.replace('.', r'\.')
             ssh.send_command(f"sed -i '/address=\\/{escaped_domain}\\/0\\.0\\.0\\.0/d' /etc/dnsmasq.conf", read_timeout=10)
             
             # Перезапускаем dnsmasq
