@@ -421,23 +421,24 @@
             
             <!-- KPI карточки -->
             <div class="kpi-grid">
-                <div class="kpi-card card-danger">
+                <!-- <div class="kpi-card card-danger">
                     <div class="kpi-title">
                         <i class="fas fa-exclamation-triangle"></i> Блокированных атак
                     </div>
-                </div>
+                </div> -->
                 
                 <div class="kpi-card card-warning">
                     <div class="kpi-title">
                         <i class="fas fa-plug"></i> Активных устройств
                     </div>
+                    <div class="kpi-value" id="active-devices-count">--</div>
                 </div>
                 
-                <div class="kpi-card card-success">
+                <!-- <div class="kpi-card card-success">
                     <div class="kpi-title">
                         <i class="fas fa-traffic-light"></i> Пропускная способность
                     </div>
-                </div>
+                </div> -->
                 
                 <div class="kpi-card card-primary" id="response-time-card">
                     <div class="kpi-title">
@@ -563,9 +564,23 @@
                 document.getElementById('avg-response-time').textContent = '--';
             }
         }
+        async function updateActiveDevicesCount() {
+            try {
+                const response = await fetch('/api/firewall_devices');
+                if (!response.ok) return;
+                const data = await response.json();
+                // Считаем устройства со статусом 'Онлайн'
+                const onlineCount = Array.isArray(data) ? data.filter(dev => dev.status === 'Онлайн').length : 0;
+                document.getElementById('active-devices-count').textContent = onlineCount;
+            } catch (e) {
+                document.getElementById('active-devices-count').textContent = '--';
+            }
+        }
         document.addEventListener('DOMContentLoaded', function() {
             updateAvgResponseTime();
             setInterval(updateAvgResponseTime, 5000);
+            updateActiveDevicesCount();
+            setInterval(updateActiveDevicesCount, 5000);
         });
     </script>
 </body>
