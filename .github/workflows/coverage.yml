@@ -77,3 +77,10 @@ jobs:
       with:
         name: coverage-html
         path: htmlcov/ 
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage.xml
+        flags: unittests
+        name: codecov-umbrella
+        fail_ci_if_error: false 
