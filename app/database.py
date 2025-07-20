@@ -348,6 +348,15 @@ async def startup_event():
     
     await conn.close()
     
+    # Создаем индексы для оптимизации производительности
+    try:
+        from app.database_indexes import create_database_indexes, analyze_table_statistics
+        await create_database_indexes()
+        await analyze_table_statistics()
+        logging.info("[DB-LOG] Database indexes created successfully")
+    except Exception as e:
+        logging.warning(f"[DB-LOG] Could not create database indexes: {e}")
+    
     # Синхронизируем пользователей с базой данных
     await sync_users_to_database()
     
