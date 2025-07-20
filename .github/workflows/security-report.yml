@@ -1,0 +1,29 @@
+name: Security Report
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  bandit-report:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.12'
+    - name: Install Bandit
+      run: |
+        python -m pip install --upgrade pip
+        pip install bandit
+    - name: Run Bandit and generate report
+      run: |
+        bandit -r app/ -c .bandit -f html -o bandit-report.html || true
+    - name: Upload Bandit HTML report
+      uses: actions/upload-artifact@v4
+      with:
+        name: bandit-html-report
+        path: bandit-report.html 

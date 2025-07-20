@@ -4,6 +4,7 @@
 
 [![Tests](https://github.com/otec2006/Firewall-Management-Platform/actions/workflows/tests.yml/badge.svg)](https://github.com/otec2006/Firewall-Management-Platform/actions/workflows/tests.yml)
 [![Security](https://github.com/otec2006/Firewall-Management-Platform/actions/workflows/security.yml/badge.svg)](https://github.com/otec2006/Firewall-Management-Platform/actions/workflows/security.yml)
+[![Security Report](https://github.com/otec2006/Firewall-Management-Platform/actions/workflows/security-report.yml/badge.svg)](https://github.com/otec2006/Firewall-Management-Platform/actions/workflows/security-report.yml)
 [![Coverage HTML](https://img.shields.io/badge/Coverage%20HTML-artifact-blue?logo=github)](https://github.com/otec2006/Firewall-Management-Platform/actions/workflows/coverage.yml)
 [![Codecov](https://codecov.io/gh/otec2006/Firewall-Management-Platform/branch/main/graph/badge.svg)](https://codecov.io/gh/otec2006/Firewall-Management-Platform)
 [![Python](https://img.shields.io/badge/python-3.12-blue)](https://python.org)
